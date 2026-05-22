@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'questimath-0.2.5';
+const CACHE_VERSION = 'questimath-0.2.6';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-app-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const DEPENDENCY_CACHE = `${CACHE_VERSION}-dependencies`;

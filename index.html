@@ -132,7 +132,7 @@
   <!-- React Application Core -->
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
-    const APP_VERSION = '0.2.5';
+    const APP_VERSION = '0.2.6';
     const LOCAL_PROGRESS_KEY = 'questimath.progress.v1';
     const AUTO_CONTINUE_SECONDS = 5;
 
@@ -290,8 +290,14 @@
 
       const [dailyGoalMax] = useState(150);
 
+      const focusAnswerInput = () => {
+        window.setTimeout(() => {
+          inputRef.current?.focus();
+        }, 0);
+      };
+
       useEffect(() => {
-        if (inputRef.current) inputRef.current.focus();
+        focusAnswerInput();
       }, [currentProblem, feedback]);
 
       /*
@@ -811,6 +817,7 @@
       const nextProblem = () => {
         playSound('click', isMuted);
         generateNewQuest();
+        focusAnswerInput();
       };
 
       /*
@@ -1007,7 +1014,7 @@
                       
                       <input 
                         ref={inputRef}
-                        type="search"
+                        type="tel"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         enterKeyHint="done"
