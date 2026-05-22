@@ -628,6 +628,17 @@
         const op = targetOps[Math.floor(Math.random() * targetOps.length)];
         let num1 = 0, num2 = 0, answer = 0;
 
+        const buildDivisionProblem = (divisors, quotients) => {
+          const divisor = divisors[Math.floor(Math.random() * divisors.length)];
+          const quotient = quotients[Math.floor(Math.random() * quotients.length)];
+
+          return {
+            num1: divisor * quotient,
+            num2: divisor,
+            answer: quotient
+          };
+        };
+
         switch (targetLevel) {
           case 1:
             if (op === '+') {
@@ -643,9 +654,7 @@
               num2 = Math.floor(Math.random() * 5) + 1;
               answer = num1 * num2;
             } else {
-              num2 = Math.floor(Math.random() * 3) + 2;
-              answer = Math.floor(Math.random() * 4) + 2;
-              num1 = num2 * answer;
+              ({ num1, num2, answer } = buildDivisionProblem([2, 3, 4, 5], [2, 3, 4, 5]));
             }
             break;
 
@@ -663,9 +672,7 @@
               num2 = Math.floor(Math.random() * 8) + 2;
               answer = num1 * num2;
             } else {
-              num2 = Math.floor(Math.random() * 7) + 3;
-              answer = Math.floor(Math.random() * 7) + 2;
-              num1 = num2 * answer;
+              ({ num1, num2, answer } = buildDivisionProblem([2, 3, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 8, 9]));
             }
             break;
 
@@ -683,9 +690,7 @@
               num2 = Math.floor(Math.random() * 7) + 3;
               answer = num1 * num2;
             } else {
-              num2 = Math.floor(Math.random() * 4) + 9;
-              answer = Math.floor(Math.random() * 7) + 4;
-              num1 = num2 * answer;
+              ({ num1, num2, answer } = buildDivisionProblem([6, 7, 8, 9, 10, 11, 12], [4, 5, 6, 7, 8, 9, 10, 11, 12]));
             }
             break;
 
@@ -703,9 +708,7 @@
               num2 = Math.floor(Math.random() * 10) + 11;
               answer = num1 * num2;
             } else {
-              num2 = Math.floor(Math.random() * 10) + 11;
-              answer = Math.floor(Math.random() * 10) + 6;
-              num1 = num2 * answer;
+              ({ num1, num2, answer } = buildDivisionProblem([8, 9, 10, 11, 12, 13, 14, 15], [6, 7, 8, 9, 10, 11, 12, 13, 14, 15]));
             }
             break;
 
@@ -724,9 +727,7 @@
               num2 = Math.floor(Math.random() * 40) + 12;
               answer = num1 * num2;
             } else {
-              num2 = Math.floor(Math.random() * 30) + 15;
-              answer = Math.floor(Math.random() * 30) + 12;
-              num1 = num2 * answer;
+              ({ num1, num2, answer } = buildDivisionProblem([12, 14, 15, 16, 18, 20, 24, 25, 30], [12, 14, 15, 16, 18, 20, 24, 25, 30]));
             }
             break;
         }
