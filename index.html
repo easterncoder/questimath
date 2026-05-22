@@ -132,8 +132,8 @@
   <!-- React Application Core -->
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
-    const APP_VERSION = '0.2.0';
-    const LOCAL_PROGRESS_KEY = 'mathquest.progress.v1';
+    const APP_VERSION = '0.2.1';
+    const LOCAL_PROGRESS_KEY = 'questimath.progress.v1';
 
     /*
      * Returns the default progress shape used by local and cloud storage.
@@ -247,7 +247,7 @@
     ];
 
     const BADGES = [
-      { id: 'first_step', title: 'First Spark ⚡', desc: 'Solved your very first math quest correctly!', unlocked: false },
+      { id: 'first_step', title: 'First Spark ⚡', desc: 'Solved your very first QuestiMath challenge correctly!', unlocked: false },
       { id: 'streak_5', title: 'On Fire! 🔥', desc: 'Reached a streak of 5 correct answers.', unlocked: false },
       { id: 'streak_15', title: 'Absolute Zenith 🚀', desc: 'Reached a mega streak of 15 correct answers.', unlocked: false },
       { id: 'speedy', title: 'Speed Demon ⚡', desc: 'Solved a complex math puzzle in under 2.5 seconds!', unlocked: false },
