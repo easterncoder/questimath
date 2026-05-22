@@ -291,13 +291,21 @@
       const [dailyGoalMax] = useState(150);
 
       const focusAnswerInput = () => {
-        window.setTimeout(() => {
-          inputRef.current?.focus();
-        }, 0);
+        window.requestAnimationFrame(() => {
+          const answerInput = inputRef.current;
+
+          if (!answerInput || answerInput.disabled) {
+            return;
+          }
+
+          answerInput.focus({ preventScroll: true });
+        });
       };
 
       useEffect(() => {
-        focusAnswerInput();
+        if (currentProblem && !feedback?.status) {
+          focusAnswerInput();
+        }
       }, [currentProblem, feedback]);
 
       /*
@@ -817,7 +825,6 @@
       const nextProblem = () => {
         playSound('click', isMuted);
         generateNewQuest();
-        focusAnswerInput();
       };
 
       /*
