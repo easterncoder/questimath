@@ -137,6 +137,7 @@
     const APP_VERSION = '0.2.7';
     const LOCAL_PROGRESS_KEY = 'questimath.progress.v1';
     const AUTO_CONTINUE_SECONDS = 5;
+    const MAX_MISSED_PROBLEMS = 12;
     const { isCorrectAnswer } = window.QuestiMathValidation;
 
     /*
@@ -148,6 +149,7 @@
         xp: 0,
         highestStreak: 0,
         solvedHistory: { total: 0, correct: 0, wrong: 0, ops: {} },
+        missedProblems: [],
         badgeList: null
       };
     }
@@ -283,6 +285,7 @@
       const [activePadKey, setActivePadKey] = useState(null);
       const [isMuted, setIsMuted] = useState(false);
       const [solvedHistory, setSolvedHistory] = useState(initialProgressRef.current.solvedHistory);
+      const [missedProblems, setMissedProblems] = useState(initialProgressRef.current.missedProblems || []);
       const [badgeList, setBadgeList] = useState(initialProgressRef.current.badgeList || BADGES);
       
       const [practiceOps, setPracticeOps] = useState({ '+': true, '-': true, '*': false, '/': false });
@@ -412,12 +415,14 @@
             if (data.xp !== undefined) setXp(data.xp);
             if (data.highestStreak !== undefined) setHighestStreak(data.highestStreak);
             if (data.solvedHistory) setSolvedHistory(data.solvedHistory);
+            if (Array.isArray(data.missedProblems)) setMissedProblems(data.missedProblems);
             if (Array.isArray(data.badgeList)) setBadgeList(data.badgeList);
             saveLocalProgress({
               level: data.level || level,
               xp: data.xp !== undefined ? data.xp : xp,
               highestStreak: data.highestStreak !== undefined ? data.highestStreak : highestStreak,
               solvedHistory: data.solvedHistory || solvedHistory,
+              missedProblems: Array.isArray(data.missedProblems) ? data.missedProblems : missedProblems,
               badgeList: Array.isArray(data.badgeList) ? data.badgeList : badgeList
             });
             setSyncStatus('synced');
@@ -434,12 +439,13 @@
         return () => unsubscribe();
       }, [user]);
 
-      const saveStatsToCloud = async (newLvl, newXp, newMaxStreak, newHistory, newBadgeList = badgeList) => {
+      const saveStatsToCloud = async (newLvl, newXp, newMaxStreak, newHistory, newBadgeList = badgeList, newMissedProblems = missedProblems) => {
         const progress = {
           level: newLvl,
           xp: newXp,
           highestStreak: newMaxStreak,
           solvedHistory: newHistory,
+          missedProblems: newMissedProblems,
           badgeList: newBadgeList
         };
 
@@ -466,6 +472,7 @@
             xp: newXp,
             highestStreak: newMaxStreak,
             solvedHistory: newHistory,
+            missedProblems: newMissedProblems,
             badgeList: newBadgeList,
             updatedAt: new Date().toISOString()
           }, { merge: true });
@@ -616,6 +623,7 @@
             xp,
             highestStreak,
             solvedHistory,
+            missedProblems,
             badgeList: nextBadges
           });
         }
@@ -773,6 +781,57 @@
         });
       };
 
+      /*
+       * Loads the most recent saved missed problem into the active answer flow.
+       */
+      const startMistakeReview = () => {
+        const missedProblem = missedProblems[0];
+
+        if (!missedProblem) {
+          return;
+        }
+
+        playSound('click', isMuted);
+        setUserAnswer('');
+        setFeedback(null);
+        answerSubmittedRef.current = false;
+        setCurrentProblem({
+          ...missedProblem,
+          reviewId: missedProblem.id,
+          startTime: Date.now()
+        });
+      };
+
+      /*
+       * Stores a newly missed problem without duplicating review attempts.
+       */
+      const addMissedProblem = () => {
+        if (currentProblem.reviewId) {
+          return missedProblems;
+        }
+
+        const nextMissedProblem = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          num1: currentProblem.num1,
+          num2: currentProblem.num2,
+          op: currentProblem.op,
+          answer: currentProblem.answer
+        };
+
+        return [nextMissedProblem, ...missedProblems].slice(0, MAX_MISSED_PROBLEMS);
+      };
+
+      /*
+       * Removes a reviewed problem once the player answers it correctly.
+       */
+      const clearReviewedProblem = () => {
+        if (!currentProblem.reviewId) {
+          return missedProblems;
+        }
+
+        return missedProblems.filter(problem => problem.id !== currentProblem.reviewId);
+      };
+
       const generateHintExplanation = (num1, num2, op, actualAns) => {
         let text = "";
         if (op === '+') {
@@ -826,6 +885,7 @@
         let nextStreak = streak;
         let nextHighestStreak = highestStreak;
         let nextBadgeList = badgeList;
+        let nextMissedProblems = missedProblems;
 
         if (correct) {
           playSound('correct', isMuted);
@@ -865,17 +925,21 @@
           }
 
           const streakText = `Streak: ${nextStreak}`;
+          nextMissedProblems = clearReviewedProblem();
+          setMissedProblems(nextMissedProblems);
 
           setFeedback({
             status: 'success',
             text: nextLevelMessage
               ? `${nextLevelMessage} ${streakText}.`
+              : currentProblem.reviewId
+                ? `Mistake cleared. ${streakText}. 🎉`
               : `Brilliant! +${earnedXP} XP. ${streakText}${streakBonus > 0 ? `, +${streakBonus} bonus XP` : ''}. 🎉`,
             hint: ''
           });
 
           setSolvedHistory(newHistory);
-          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList);
+          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems);
 
         } else {
           playSound('wrong', isMuted);
@@ -890,6 +954,9 @@
             currentProblem.answer
           );
 
+          nextMissedProblems = addMissedProblem();
+          setMissedProblems(nextMissedProblems);
+
           setFeedback({
             status: 'error',
             text: `Oops! The correct answer was ${currentProblem.answer}. ${streak > 0 ? `Streak reset from ${streak}.` : 'Start a new streak next quest.'}`,
@@ -897,7 +964,7 @@
           });
 
           setSolvedHistory(newHistory);
-          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList);
+          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems);
         }
       };
 
@@ -1248,6 +1315,33 @@
                   <span>{xp} XP Earned</span>
                   <span>Goal: {dailyGoalMax} XP</span>
                 </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 shadow-lg rounded-2xl sm:rounded-3xl p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <h3 className="text-md font-bold heading-font text-slate-300">🧠 Mistake Review</h3>
+                    <p className="text-[11px] text-slate-500 font-semibold mt-1">
+                      {missedProblems.length > 0 ? `${missedProblems.length} saved miss${missedProblems.length === 1 ? '' : 'es'}` : 'No saved misses'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={startMistakeReview}
+                    disabled={missedProblems.length === 0}
+                    className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed transition-all"
+                  >
+                    Review
+                  </button>
+                </div>
+                {missedProblems[0] && (
+                  <div className="text-[11px] text-slate-400 font-bold bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 flex items-center justify-between">
+                    <span>Next miss</span>
+                    <span className="font-mono text-indigo-300">
+                      {missedProblems[0].num1} {missedProblems[0].op === '*' ? '×' : missedProblems[0].op === '/' ? '÷' : missedProblems[0].op} {missedProblems[0].num2}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {gameMode === 'practice' && (
