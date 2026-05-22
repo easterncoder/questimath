@@ -132,7 +132,7 @@
   <!-- React Application Core -->
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
-    const APP_VERSION = '0.2.4';
+    const APP_VERSION = '0.2.5';
     const LOCAL_PROGRESS_KEY = 'questimath.progress.v1';
     const AUTO_CONTINUE_SECONDS = 5;
 
@@ -817,7 +817,7 @@
        * Advances to the next quest after feedback has been visible briefly.
        */
       useEffect(() => {
-        if (!feedback?.status) {
+        if (feedback?.status !== 'success') {
           setContinueCountdown(null);
           return undefined;
         }
@@ -1007,7 +1007,7 @@
                       
                       <input 
                         ref={inputRef}
-                        type="number"
+                        type="search"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         enterKeyHint="done"
@@ -1040,7 +1040,7 @@
                         onClick={checkAnswer}
                         className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 transition-all py-4 px-6 rounded-2xl font-bold tracking-wide shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                       >
-                        <span>Verify Spell (Enter)</span>
+                        <span>Verify Spell</span>
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                       </button>
                     )}
