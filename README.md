@@ -34,4 +34,12 @@ The app works locally without Firebase credentials by saving progress in `localS
 
 ## Release
 
-Current version: `0.1.0`
+Current version: `0.1.1`
+
+## Author
+
+Mike Lopez <e@mikelopez.com>
+
+## License
+
+MathQuest is licensed under the GNU General Public License version 2. See [LICENSE](LICENSE).

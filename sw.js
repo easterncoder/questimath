@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'mathquest-v3';
+const CACHE_VERSION = 'mathquest-v4';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-app-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const DEPENDENCY_CACHE = `${CACHE_VERSION}-dependencies`;
