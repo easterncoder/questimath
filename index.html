@@ -832,9 +832,13 @@
             }
           }
 
+          const streakText = `Streak: ${nextStreak}`;
+
           setFeedback({
             status: 'success',
-            text: nextLevelMessage || `Brilliant! +${earnedXP} XP ${streakBonus > 0 ? `(${streakBonus} Streak Bonus!)` : ''} 🎉`,
+            text: nextLevelMessage
+              ? `${nextLevelMessage} ${streakText}.`
+              : `Brilliant! +${earnedXP} XP. ${streakText}${streakBonus > 0 ? `, +${streakBonus} bonus XP` : ''}. 🎉`,
             hint: ''
           });
 
@@ -856,7 +860,7 @@
 
           setFeedback({
             status: 'error',
-            text: `Oops! The correct answer was ${currentProblem.answer}.`,
+            text: `Oops! The correct answer was ${currentProblem.answer}. ${streak > 0 ? `Streak reset from ${streak}.` : 'Start a new streak next quest.'}`,
             hint: hintExplanation
           });
 
