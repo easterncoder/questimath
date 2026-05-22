@@ -23,6 +23,8 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <!-- Babel for JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Shared answer parsing and validation -->
+  <script src="answer-validation.js"></script>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -135,6 +137,7 @@
     const APP_VERSION = '0.2.7';
     const LOCAL_PROGRESS_KEY = 'questimath.progress.v1';
     const AUTO_CONTINUE_SECONDS = 5;
+    const { isCorrectAnswer } = window.QuestiMathValidation;
 
     /*
      * Returns the default progress shape used by local and cloud storage.
@@ -776,8 +779,7 @@
 
         answerSubmittedRef.current = true;
 
-        const numericAnswer = parseInt(userAnswer);
-        const correct = numericAnswer === currentProblem.answer;
+        const correct = isCorrectAnswer(userAnswer, currentProblem.answer);
         const timeElapsed = (Date.now() - currentProblem.startTime) / 1000;
 
         const updatedOps = { ...solvedHistory.ops };
