@@ -289,6 +289,7 @@
       const canvasRef = useRef(null);
       const inputRef = useRef(null);
       const keypadFlashTimeoutRef = useRef(null);
+      const answerSubmittedRef = useRef(false);
 
       const [dailyGoalMax] = useState(150);
 
@@ -609,6 +610,7 @@
       const generateNewQuest = () => {
         setUserAnswer('');
         setFeedback(null);
+        answerSubmittedRef.current = false;
         
         let targetOps = [];
         let targetLevel = level;
@@ -769,7 +771,9 @@
       };
 
       const checkAnswer = () => {
-        if (!currentProblem || userAnswer.trim() === '') return;
+        if (!currentProblem || userAnswer.trim() === '' || answerSubmittedRef.current) return;
+
+        answerSubmittedRef.current = true;
 
         const numericAnswer = parseInt(userAnswer);
         const correct = numericAnswer === currentProblem.answer;
