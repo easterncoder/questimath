@@ -284,6 +284,7 @@
       const [continueCountdown, setContinueCountdown] = useState(null);
       const [activePadKey, setActivePadKey] = useState(null);
       const [isMuted, setIsMuted] = useState(false);
+      const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
       const [solvedHistory, setSolvedHistory] = useState(initialProgressRef.current.solvedHistory);
       const [missedProblems, setMissedProblems] = useState(initialProgressRef.current.missedProblems || []);
       const [badgeList, setBadgeList] = useState(initialProgressRef.current.badgeList || BADGES);
@@ -1009,7 +1010,7 @@
           <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-50 w-full h-full"></canvas>
 
           {/* Navigation/Header Bar */}
-          <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-3 sm:px-6 py-3 sm:py-4 sticky top-0 z-40 transition-all">
+          <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md px-3 sm:px-6 py-2 sm:py-4 sticky top-0 z-40 transition-all">
             <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
               
               <div className="flex flex-col min-[360px]:flex-row min-[360px]:items-center justify-between md:justify-start gap-3 md:gap-4">
@@ -1025,7 +1026,7 @@
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 min-[360px]:flex bg-slate-950 p-1 rounded-xl border border-slate-800 w-full min-[360px]:w-auto">
+                <div className="hidden md:flex bg-slate-950 p-1 rounded-xl border border-slate-800 w-auto">
                   <button 
                     onClick={() => { setGameMode('adventure'); setStreak(0); }}
                     className={`min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${gameMode === 'adventure' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
@@ -1042,7 +1043,7 @@
               </div>
 
               {/* Status & Stats Panel */}
-              <div className="grid grid-cols-[1fr_auto] min-[360px]:flex min-[360px]:flex-wrap items-center gap-2 sm:gap-4 justify-between md:justify-end">
+              <div className="hidden md:flex md:flex-wrap items-center gap-2 sm:gap-4 justify-end">
                 <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold">
                   {syncStatus === 'connecting' && (
                     <span className="text-amber-400 flex items-center gap-1">
@@ -1105,6 +1106,85 @@
                 </button>
               </div>
 
+              <div className="md:hidden">
+                <div className="grid grid-cols-6 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setGameMode('adventure'); setStreak(0); }}
+                    aria-label="Adventure mode"
+                    className={`min-h-10 rounded-xl border text-sm font-bold ${gameMode === 'adventure' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}
+                  >
+                    🏆
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setGameMode('practice'); setStreak(0); }}
+                    aria-label="Practice mode"
+                    className={`min-h-10 rounded-xl border text-sm font-bold ${gameMode === 'practice' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}
+                  >
+                    🎯
+                  </button>
+                  <div className="min-h-10 rounded-xl bg-slate-950 border border-orange-500/20 text-orange-400 text-[11px] font-extrabold flex items-center justify-center">
+                    🔥 {streak}
+                  </div>
+                  <div className={`min-h-10 rounded-xl text-white text-[11px] font-extrabold bg-gradient-to-r ${RANKS[level - 1].color} flex items-center justify-center`}>
+                    R{level}
+                  </div>
+                  <div className="min-h-10 rounded-xl bg-slate-950 border border-slate-800 text-indigo-300 text-[11px] font-extrabold flex items-center justify-center">
+                    {xp} XP
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileStatsOpen(prev => !prev)}
+                    aria-label="Toggle mobile stats"
+                    aria-expanded={mobileStatsOpen}
+                    className="min-h-10 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 text-sm font-bold flex items-center justify-center"
+                  >
+                    {mobileStatsOpen ? '⌃' : '⌄'}
+                  </button>
+                </div>
+
+                {mobileStatsOpen && (
+                  <div className="mt-2 rounded-2xl bg-slate-950 border border-slate-800 p-3 text-[11px] text-slate-400 font-bold space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span>Mode</span>
+                      <span className="text-slate-200">{gameMode === 'adventure' ? 'Adventure' : `Practice Tier ${practiceLevel}`}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Rank</span>
+                      <span className="text-indigo-300">{RANKS[level - 1].name}</span>
+                    </div>
+                    {gameMode === 'adventure' && (
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span>Rank Progress</span>
+                          <span className="text-indigo-300">{calcProgressPercent().toFixed(0)}%</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-900 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${RANKS[level - 1].color}`}
+                            style={{ width: `${calcProgressPercent()}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span>Sync</span>
+                      <span className={syncStatus === 'synced' ? 'text-emerald-400' : syncStatus === 'error' ? 'text-rose-400' : 'text-slate-300'}>
+                        {syncStatus === 'synced' ? 'Synced' : syncStatus === 'saving' ? 'Saving' : syncStatus === 'connecting' ? 'Connecting' : syncStatus === 'error' ? 'Offline' : 'Cached'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsMuted(!isMuted)}
+                      className="w-full min-h-10 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 font-bold"
+                    >
+                      {isMuted ? 'Sound Off' : 'Sound On'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
             </div>
           </header>
 
@@ -1113,7 +1193,7 @@
             <section className="lg:col-span-8 grid grid-cols-1 gap-5 sm:gap-6">
 
               {gameMode === 'adventure' && (
-                <div className="bg-slate-900/40 border border-slate-800 p-4 rounded-2xl">
+                <div className="hidden md:block bg-slate-900/40 border border-slate-800 p-4 rounded-2xl">
                   <div className="flex justify-between items-center gap-3 text-xs text-slate-400 mb-2">
                     <span className="font-semibold uppercase tracking-wider">Adventure Mode Progress</span>
                     <span className="text-right">{calcProgressPercent().toFixed(0)}% to Rank Up</span>
