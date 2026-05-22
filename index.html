@@ -321,6 +321,17 @@
           return;
         }
 
+        if (value === '.') {
+          setUserAnswer(prev => {
+            if (prev.includes('.')) {
+              return prev;
+            }
+
+            return prev === '' ? '0.' : `${prev}.`;
+          });
+          return;
+        }
+
         setUserAnswer(prev => prev + value);
       };
 
@@ -1109,10 +1120,17 @@
                       ))}
                       <button
                         type="button"
-                        disabled
-                        aria-hidden="true"
-                        className="min-h-14 rounded-2xl opacity-0 pointer-events-none"
-                      ></button>
+                        onClick={() => handleAnswerInput('.')}
+                        disabled={feedback && feedback.status !== null}
+                        aria-label="Decimal point"
+                        className={`active-scale min-h-14 rounded-2xl border text-slate-100 text-xl font-extrabold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
+                          activePadKey === '.'
+                            ? 'bg-indigo-600 border-indigo-400 shadow-lg shadow-indigo-500/20'
+                            : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        .
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleAnswerInput('0')}
