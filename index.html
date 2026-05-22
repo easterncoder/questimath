@@ -277,6 +277,7 @@
       const [userAnswer, setUserAnswer] = useState('');
       const [feedback, setFeedback] = useState(null);
       const [continueCountdown, setContinueCountdown] = useState(null);
+      const [activePadKey, setActivePadKey] = useState(null);
       const [isMuted, setIsMuted] = useState(false);
       const [solvedHistory, setSolvedHistory] = useState(initialProgressRef.current.solvedHistory);
       const [badgeList, setBadgeList] = useState(initialProgressRef.current.badgeList || BADGES);
@@ -287,6 +288,7 @@
       const [shakeActive, setShakeActive] = useState(false);
       const canvasRef = useRef(null);
       const inputRef = useRef(null);
+      const keypadFlashTimeoutRef = useRef(null);
 
       const [dailyGoalMax] = useState(150);
 
@@ -301,6 +303,26 @@
           answerInput.focus({ preventScroll: true });
         });
       };
+
+      const handleAnswerInput = (value) => {
+        if (feedback && feedback.status) return;
+
+        playSound('click', isMuted);
+        setActivePadKey(value);
+        window.clearTimeout(keypadFlashTimeoutRef.current);
+        keypadFlashTimeoutRef.current = window.setTimeout(() => setActivePadKey(null), 120);
+
+        if (value === 'BACKSPACE') {
+          setUserAnswer(prev => prev.slice(0, -1));
+          return;
+        }
+
+        setUserAnswer(prev => prev + value);
+      };
+
+      useEffect(() => {
+        return () => window.clearTimeout(keypadFlashTimeoutRef.current);
+      }, []);
 
       useEffect(() => {
         if (currentProblem && !feedback?.status) {
@@ -443,7 +465,24 @@
       // Game controller events
       useEffect(() => {
         const handleKeyPress = (e) => {
+          if (e.metaKey || e.ctrlKey || e.altKey) {
+            return;
+          }
+
+          if (/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+            handleAnswerInput(e.key);
+            return;
+          }
+
+          if (e.key === 'Backspace') {
+            e.preventDefault();
+            handleAnswerInput('BACKSPACE');
+            return;
+          }
+
           if (e.key === 'Enter') {
+            e.preventDefault();
             if (feedback && feedback.status) {
               nextProblem();
             } else {
@@ -1021,14 +1060,14 @@
                       
                       <input 
                         ref={inputRef}
-                        type="tel"
-                        inputMode="numeric"
+                        type="text"
+                        inputMode="none"
                         pattern="[0-9]*"
-                        enterKeyHint="done"
                         placeholder="?"
                         value={userAnswer}
+                        readOnly
                         disabled={feedback && feedback.status !== null}
-                        onChange={(e) => setUserAnswer(e.target.value)}
+                        aria-label="Answer"
                         className={`w-[clamp(7.25rem,34vw,11rem)] px-3 py-2 text-center rounded-2xl bg-slate-950 border text-slate-100 font-extrabold leading-none focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all ${
                           feedback?.status === 'success' ? 'border-emerald-500 text-emerald-400 ring-4 ring-emerald-500/10' :
                           feedback?.status === 'error' ? 'border-rose-500 text-rose-400 ring-4 ring-rose-500/10' :
@@ -1040,24 +1079,78 @@
                 ) : null}
 
                 {!loadingProgress && (
-                  <div className="flex flex-col gap-4 max-w-sm mx-auto mt-5 sm:mt-6">
-                    {feedback && feedback.status ? (
+                  <div className="mt-6 max-w-sm mx-auto">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(value => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => handleAnswerInput(value)}
+                          disabled={feedback && feedback.status !== null}
+                          className={`active-scale min-h-14 rounded-2xl border text-slate-100 text-xl font-extrabold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
+                            activePadKey === value
+                              ? 'bg-indigo-600 border-indigo-400 shadow-lg shadow-indigo-500/20'
+                              : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          {value}
+                        </button>
+                      ))}
                       <button
-                        onClick={nextProblem}
-                        className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition-all py-4 px-6 rounded-2xl font-bold tracking-wide shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
-                      >
-                        <span>Continue to Next Quest{continueCountdown !== null ? ` (${continueCountdown})` : ''}</span>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                      </button>
-                    ) : (
+                        type="button"
+                        disabled
+                        aria-hidden="true"
+                        className="min-h-14 rounded-2xl opacity-0 pointer-events-none"
+                      ></button>
                       <button
-                        onClick={checkAnswer}
-                        className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 transition-all py-4 px-6 rounded-2xl font-bold tracking-wide shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                        type="button"
+                        onClick={() => handleAnswerInput('0')}
+                        disabled={feedback && feedback.status !== null}
+                        className={`active-scale min-h-14 rounded-2xl border text-slate-100 text-xl font-extrabold disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
+                          activePadKey === '0'
+                            ? 'bg-indigo-600 border-indigo-400 shadow-lg shadow-indigo-500/20'
+                            : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                        }`}
                       >
-                        <span>Verify Spell</span>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        0
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => handleAnswerInput('BACKSPACE')}
+                        disabled={feedback && feedback.status !== null}
+                        aria-label="Backspace"
+                        title="Backspace"
+                        className={`active-scale min-h-14 rounded-2xl border text-rose-300 text-xl font-extrabold disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center ${
+                          activePadKey === 'BACKSPACE'
+                            ? 'bg-rose-700 border-rose-400 shadow-lg shadow-rose-500/20'
+                            : 'bg-rose-950/60 border-rose-900/30 hover:bg-rose-900/40'
+                        }`}
+                      >
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 6H9l-5 6 5 6h11a2 2 0 002-2V8a2 2 0 00-2-2zM12 10l4 4m0-4l-4 4" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="mt-4">
+                      {feedback && feedback.status ? (
+                        <button
+                          onClick={nextProblem}
+                          className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition-all py-4 px-6 rounded-2xl font-bold tracking-wide shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
+                        >
+                          <span>Continue to Next Quest{continueCountdown !== null ? ` (${continueCountdown})` : ''}</span>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={checkAnswer}
+                          className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 transition-all py-4 px-6 rounded-2xl font-bold tracking-wide shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                        >
+                          <span>Verify Spell</span>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
