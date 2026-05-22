@@ -1,4 +1,6 @@
 (function (root) {
+  const ANSWER_TOLERANCE = 0.000001;
+
   /*
    * Converts a user-entered answer into a valid number or null.
    */
@@ -26,7 +28,7 @@
       return false;
     }
 
-    return parsedAnswer === Number(expectedAnswer);
+    return Math.abs(parsedAnswer - Number(expectedAnswer)) < ANSWER_TOLERANCE;
   }
 
   const validation = {

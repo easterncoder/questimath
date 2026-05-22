@@ -18,5 +18,6 @@ assert.strictEqual(isCorrectAnswer('abc', 12), false);
 assert.strictEqual(isCorrectAnswer('3.5', 3.5), true);
 assert.strictEqual(isCorrectAnswer('3.50', 3.5), true);
 assert.strictEqual(isCorrectAnswer('3.51', 3.5), false);
+assert.strictEqual(isCorrectAnswer('0.3', 0.1 + 0.2), true);
 
 console.log('answer validation tests passed');

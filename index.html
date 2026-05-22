@@ -642,6 +642,24 @@
         const op = targetOps[Math.floor(Math.random() * targetOps.length)];
         let num1 = 0, num2 = 0, answer = 0;
 
+        /*
+         * Returns a random integer between two inclusive bounds.
+         */
+        const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+        /*
+         * Returns a random value to one decimal place between two inclusive bounds.
+         */
+        const randomTenth = (min, max) => Number((randomInt(min * 10, max * 10) / 10).toFixed(1));
+
+        /*
+         * Normalizes decimal math results to the answer precision shown to players.
+         */
+        const roundToTenth = (value) => Number(value.toFixed(1));
+
+        /*
+         * Builds an exact whole-number division problem from fact-family values.
+         */
         const buildDivisionProblem = (divisors, quotients) => {
           const divisor = divisors[Math.floor(Math.random() * divisors.length)];
           const quotient = quotients[Math.floor(Math.random() * quotients.length)];
@@ -710,13 +728,13 @@
 
           case 4:
             if (op === '+') {
-              num1 = Math.floor(Math.random() * 350) + 100; 
-              num2 = Math.floor(Math.random() * 250) + 50; 
-              answer = num1 + num2;
+              num1 = randomTenth(100, 450);
+              num2 = randomTenth(50, 300);
+              answer = roundToTenth(num1 + num2);
             } else if (op === '-') {
-              num1 = Math.floor(Math.random() * 450) + 150;
-              num2 = Math.floor(Math.random() * 130) + 30;
-              answer = num1 - num2;
+              num1 = randomTenth(150, 600);
+              num2 = randomTenth(30, 160);
+              answer = roundToTenth(num1 - num2);
             } else if (op === '*') {
               num1 = Math.floor(Math.random() * 15) + 11;
               num2 = Math.floor(Math.random() * 10) + 11;
@@ -728,14 +746,14 @@
 
           case 5:
             if (op === '+') {
-              num1 = Math.floor(Math.random() * 699) + 300; 
-              num2 = Math.floor(Math.random() * 699) + 300; 
-              answer = num1 + num2;
+              num1 = randomTenth(300, 999);
+              num2 = randomTenth(300, 999);
+              answer = roundToTenth(num1 + num2);
             } else if (op === '-') {
-              num1 = Math.floor(Math.random() * 899) + 100;
-              num2 = Math.floor(Math.random() * 800) + 50;
+              num1 = randomTenth(100, 999);
+              num2 = randomTenth(50, 850);
               if (num1 < num2) [num1, num2] = [num2, num1];
-              answer = num1 - num2;
+              answer = roundToTenth(num1 - num2);
             } else if (op === '*') {
               num1 = Math.floor(Math.random() * 40) + 12;
               num2 = Math.floor(Math.random() * 40) + 12;
