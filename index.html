@@ -1073,7 +1073,7 @@
 
                 <div className="text-center mb-6">
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-500 bg-slate-950 border border-slate-800 px-3 py-1 rounded-full">
-                    {gameMode === 'adventure' ? `Quest Level ${level}` : `Practice Practice Mode`}
+                    {gameMode === 'adventure' ? `Quest Level ${level}` : 'Practice Mode'}
                   </span>
                 </div>
 
@@ -1083,7 +1083,7 @@
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    <p className="text-slate-400 font-bold text-sm tracking-wider heading-font">Retrieving Spell Deck Profile...</p>
+                    <p className="text-slate-400 font-bold text-sm tracking-wider heading-font">Loading Profile...</p>
                   </div>
                 ) : currentProblem ? (
                   <div className="flex flex-col items-center justify-center my-5 sm:my-6 md:my-10">
@@ -1233,7 +1233,7 @@
               <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg relative overflow-hidden">
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-300 heading-font">Daily Quest Goal</h3>
+                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-300 heading-font">Daily Goal</h3>
                     <p className="text-[11px] text-slate-500 font-medium">Earn XP to achieve total focus</p>
                   </div>
                   <span className="text-2xl">🏆</span>
@@ -1252,7 +1252,7 @@
 
               {gameMode === 'practice' && (
                 <div className="bg-slate-900 border border-indigo-500/20 shadow-lg rounded-2xl sm:rounded-3xl p-4 sm:p-5">
-                  <h3 className="text-md font-bold heading-font text-indigo-400 mb-4">⚙️ Custom Spell Config</h3>
+                  <h3 className="text-md font-bold heading-font text-indigo-400 mb-4">⚙️ Practice Setup</h3>
                   
                   <div className="mb-5">
                     <span className="text-xs text-slate-400 font-bold block mb-2 uppercase">Select Operators</span>
@@ -1288,7 +1288,7 @@
 
                   <div>
                     <span className="text-xs text-slate-400 font-bold flex justify-between uppercase mb-2">
-                      <span>Digit Difficulty</span>
+                      <span>Difficulty</span>
                       <span className="text-indigo-400 font-mono">Tier {practiceLevel}</span>
                     </span>
                     <div className="space-y-3 bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
@@ -1307,8 +1307,8 @@
                         {practiceLevel === 1 && "Simple single digit basics (e.g. 5 + 8)"}
                         {practiceLevel === 2 && "Double digit introduction, simpler calculations"}
                         {practiceLevel === 3 && "Full double digits & basic multiplication/division"}
-                        {practiceLevel === 4 && "Sorcerer level: Carrying, borrowing, larger multipliers"}
-                        {practiceLevel === 5 && "Grandmaster tier: Double/triple-digit mastery puzzles"}
+                        {practiceLevel === 4 && "Sorcerer tier: carrying, borrowing, larger multipliers"}
+                        {practiceLevel === 5 && "Grandmaster tier: advanced multi-digit puzzles"}
                       </p>
                     </div>
                   </div>
@@ -1316,7 +1316,7 @@
               )}
 
               <div className="bg-slate-900 border border-slate-800 shadow-lg rounded-2xl sm:rounded-3xl p-4 sm:p-5">
-                <h3 className="text-md font-bold heading-font text-slate-300 mb-4">🏆 Alchemist Achievements</h3>
+                <h3 className="text-md font-bold heading-font text-slate-300 mb-4">🏆 Achievements</h3>
                 <div className="grid grid-cols-1 gap-2.5">
                   {badgeList.map(badge => (
                     <div 
@@ -1338,10 +1338,10 @@
               </div>
 
               <div className="bg-slate-900 border border-slate-800 shadow-lg rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-xs">
-                <h3 className="text-md font-bold heading-font text-slate-300 mb-4">📊 Battle Statistics</h3>
+                <h3 className="text-md font-bold heading-font text-slate-300 mb-4">📊 Stats</h3>
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-center">
-                    <span className="block text-slate-500 font-bold uppercase text-[9px] mb-1">Solved Quest</span>
+                    <span className="block text-slate-500 font-bold uppercase text-[9px] mb-1">Solved</span>
                     <span className="text-lg font-black heading-font text-slate-200">{solvedHistory.total}</span>
                   </div>
                   <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-center">
@@ -1355,7 +1355,7 @@
                 </div>
 
                 <div className="space-y-2 bg-slate-950 p-3 rounded-2xl border border-slate-800">
-                  <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1">Casts by Operator</span>
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1">By Operator</span>
                   {['+', '-', '*', '/'].map(op => {
                     const count = solvedHistory.ops[op] || 0;
                     const maxCount = Math.max(1, ...Object.values(solvedHistory.ops || {}));
