@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MathQuest - Master Your Math Skills</title>
+  <title>QuestiMath - Master Your Math Skills</title>
   <meta name="description" content="A gamified math practice app with levels, streaks, badges, cloud sync, and offline play.">
   
   <!-- PWA Meta Tags & Manifest Link -->
@@ -13,7 +13,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="MathQuest">
+  <meta name="apple-mobile-web-app-title" content="QuestiMath">
   <link rel="apple-touch-icon" href="icon-192.png">
 
   <!-- Tailwind CSS -->
@@ -110,7 +110,7 @@
       fallbackMode = true;
     }
 
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'mathquest-app-12';
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'questimath-app';
 
     // Export Core Config Globals for React component wrapper
     window.FirebaseCore = {
@@ -132,7 +132,7 @@
   <!-- React Application Core -->
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
-    const APP_VERSION = '0.1.1';
+    const APP_VERSION = '0.2.0';
     const LOCAL_PROGRESS_KEY = 'mathquest.progress.v1';
 
     /*
@@ -845,7 +845,7 @@
                     <span className="text-lg sm:text-xl font-bold heading-font text-white">MQ</span>
                   </div>
                   <div>
-                    <h1 className="text-lg sm:text-xl font-extrabold tracking-wide heading-font bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">MathQuest</h1>
+                    <h1 className="text-lg sm:text-xl font-extrabold tracking-wide heading-font bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">QuestiMath</h1>
                     <p className="text-[9px] sm:text-[10px] text-slate-400 font-semibold tracking-wider uppercase">RPG Learning Simulator</p>
                   </div>
                 </div>
@@ -1250,7 +1250,7 @@
           </main>
 
           <footer className="border-t border-slate-900 bg-slate-950 py-4 px-6 text-center text-[11px] text-slate-500 font-semibold tracking-wide">
-            <p>⚡ MathQuest v{APP_VERSION} • GPL 2.0 • Author: Mike Lopez &lt;e@mikelopez.com&gt;</p>
+            <p>⚡ QuestiMath v{APP_VERSION} • GPL 2.0 • Author: Mike Lopez &lt;e@mikelopez.com&gt;</p>
             <p className="mt-1">Touch and keyboard controls • Cloud synced and offline capable</p>
           </footer>
         </div>

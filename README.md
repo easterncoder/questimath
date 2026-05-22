@@ -1,6 +1,6 @@
-# MathQuest
+# QuestiMath
 
-MathQuest is a browser-based math practice PWA for building arithmetic fluency through levels, streaks, badges, and offline play.
+QuestiMath is a browser-based math practice PWA for building arithmetic fluency through levels, streaks, badges, and offline play.
 
 ## Features
 
@@ -30,11 +30,11 @@ Then open `http://localhost:8000`.
 
 ## Firebase
 
-The app works locally without Firebase credentials by saving progress in `localStorage`. When hosted in an environment that provides Firebase config globals, MathQuest can sync player progress through Firestore.
+The app works locally without Firebase credentials by saving progress in `localStorage`. When hosted in an environment that provides Firebase config globals, QuestiMath can sync player progress through Firestore.
 
 ## Release
 
-Current version: `0.1.1`
+Current version: `0.2.0`
 
 ## Author
 
@@ -42,4 +42,4 @@ Mike Lopez <e@mikelopez.com>
 
 ## License
 
-MathQuest is licensed under the GNU General Public License version 2. See [LICENSE](LICENSE).
+QuestiMath is licensed under the GNU General Public License version 2. See [LICENSE](LICENSE).

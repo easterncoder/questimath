@@ -1,6 +1,6 @@
 {
-  "name": "MathQuest - Master Your Math Skills",
-  "short_name": "MathQuest",
+  "name": "QuestiMath - Master Your Math Skills",
+  "short_name": "QuestiMath",
   "description": "A gamified math practice app with levels, streaks, badges, cloud sync, and offline play.",
   "id": "/",
   "start_url": "./",
@@ -30,9 +30,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Play MathQuest",
+      "name": "Play QuestiMath",
       "short_name": "Play",
-      "description": "Start a MathQuest practice session.",
+      "description": "Start a QuestiMath practice session.",
       "url": "./",
       "icons": [
         {
