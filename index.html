@@ -138,6 +138,7 @@
     const LOCAL_PROGRESS_KEY = 'questimath.progress.v1';
     const AUTO_CONTINUE_SECONDS = 5;
     const MAX_MISSED_PROBLEMS = 12;
+    const MAX_ANSWER_HISTORY = 25;
     const { isCorrectAnswer } = window.QuestiMathValidation;
 
     /*
@@ -150,7 +151,32 @@
         highestStreak: 0,
         solvedHistory: { total: 0, correct: 0, wrong: 0, ops: {} },
         missedProblems: [],
+        answerHistory: [],
         badgeList: null
+      };
+    }
+
+    /*
+     * Merges saved progress with current defaults and array guards.
+     */
+    function normalizeProgress(progress) {
+      const defaultProgress = getDefaultProgress();
+      const savedProgress = progress || {};
+
+      return {
+        ...defaultProgress,
+        ...savedProgress,
+        solvedHistory: {
+          ...defaultProgress.solvedHistory,
+          ...(savedProgress.solvedHistory || {}),
+          ops: {
+            ...defaultProgress.solvedHistory.ops,
+            ...((savedProgress.solvedHistory && savedProgress.solvedHistory.ops) || {})
+          }
+        },
+        missedProblems: Array.isArray(savedProgress.missedProblems) ? savedProgress.missedProblems : [],
+        answerHistory: Array.isArray(savedProgress.answerHistory) ? savedProgress.answerHistory : [],
+        badgeList: Array.isArray(savedProgress.badgeList) ? savedProgress.badgeList : null
       };
     }
 
@@ -165,10 +191,7 @@
           return getDefaultProgress();
         }
 
-        return {
-          ...getDefaultProgress(),
-          ...JSON.parse(rawProgress)
-        };
+        return normalizeProgress(JSON.parse(rawProgress));
       } catch (error) {
         console.warn("Local progress could not be loaded.", error);
         return getDefaultProgress();
@@ -287,6 +310,7 @@
       const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
       const [solvedHistory, setSolvedHistory] = useState(initialProgressRef.current.solvedHistory);
       const [missedProblems, setMissedProblems] = useState(initialProgressRef.current.missedProblems || []);
+      const [answerHistory, setAnswerHistory] = useState(initialProgressRef.current.answerHistory || []);
       const [badgeList, setBadgeList] = useState(initialProgressRef.current.badgeList || BADGES);
       
       const [practiceOps, setPracticeOps] = useState({ '+': true, '-': true, '*': false, '/': false });
@@ -417,6 +441,7 @@
             if (data.highestStreak !== undefined) setHighestStreak(data.highestStreak);
             if (data.solvedHistory) setSolvedHistory(data.solvedHistory);
             if (Array.isArray(data.missedProblems)) setMissedProblems(data.missedProblems);
+            if (Array.isArray(data.answerHistory)) setAnswerHistory(data.answerHistory);
             if (Array.isArray(data.badgeList)) setBadgeList(data.badgeList);
             saveLocalProgress({
               level: data.level || level,
@@ -424,6 +449,7 @@
               highestStreak: data.highestStreak !== undefined ? data.highestStreak : highestStreak,
               solvedHistory: data.solvedHistory || solvedHistory,
               missedProblems: Array.isArray(data.missedProblems) ? data.missedProblems : missedProblems,
+              answerHistory: Array.isArray(data.answerHistory) ? data.answerHistory : answerHistory,
               badgeList: Array.isArray(data.badgeList) ? data.badgeList : badgeList
             });
             setSyncStatus('synced');
@@ -440,13 +466,14 @@
         return () => unsubscribe();
       }, [user]);
 
-      const saveStatsToCloud = async (newLvl, newXp, newMaxStreak, newHistory, newBadgeList = badgeList, newMissedProblems = missedProblems) => {
+      const saveStatsToCloud = async (newLvl, newXp, newMaxStreak, newHistory, newBadgeList = badgeList, newMissedProblems = missedProblems, newAnswerHistory = answerHistory) => {
         const progress = {
           level: newLvl,
           xp: newXp,
           highestStreak: newMaxStreak,
           solvedHistory: newHistory,
           missedProblems: newMissedProblems,
+          answerHistory: newAnswerHistory,
           badgeList: newBadgeList
         };
 
@@ -474,6 +501,7 @@
             highestStreak: newMaxStreak,
             solvedHistory: newHistory,
             missedProblems: newMissedProblems,
+            answerHistory: newAnswerHistory,
             badgeList: newBadgeList,
             updatedAt: new Date().toISOString()
           }, { merge: true });
@@ -625,6 +653,7 @@
             highestStreak,
             solvedHistory,
             missedProblems,
+            answerHistory,
             badgeList: nextBadges
           });
         }
@@ -833,6 +862,55 @@
         return missedProblems.filter(problem => problem.id !== currentProblem.reviewId);
       };
 
+      /*
+       * Creates one answer history entry from the current submitted problem.
+       */
+      const createAnswerHistoryEntry = (correct) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        num1: currentProblem.num1,
+        num2: currentProblem.num2,
+        op: currentProblem.op,
+        userAnswer: userAnswer.trim(),
+        correctAnswer: currentProblem.answer,
+        correct,
+        answeredAt: new Date().toISOString(),
+        review: Boolean(currentProblem.reviewId)
+      });
+
+      /*
+       * Keeps the newest answer history entries within the saved cap.
+       */
+      const addAnswerHistoryEntry = (entry) => [entry, ...answerHistory].slice(0, MAX_ANSWER_HISTORY);
+
+      /*
+       * Formats saved answer timestamps for the recent history panel.
+       */
+      const formatAnswerHistoryTime = (answeredAt) => {
+        if (!answeredAt) {
+          return '';
+        }
+
+        return new Date(answeredAt).toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit'
+        });
+      };
+
+      /*
+       * Converts stored operators to the display symbols players see.
+       */
+      const formatOperatorSymbol = (op) => {
+        if (op === '*') {
+          return '×';
+        }
+
+        if (op === '/') {
+          return '÷';
+        }
+
+        return op;
+      };
+
       const generateHintExplanation = (num1, num2, op, actualAns) => {
         let text = "";
         if (op === '+') {
@@ -880,6 +958,7 @@
           wrong: solvedHistory.wrong + (correct ? 0 : 1),
           ops: updatedOps
         };
+        const nextAnswerHistory = addAnswerHistoryEntry(createAnswerHistoryEntry(correct));
 
         let nextLevel = level;
         let nextXp = xp;
@@ -928,6 +1007,7 @@
           const streakText = `Streak: ${nextStreak}`;
           nextMissedProblems = clearReviewedProblem();
           setMissedProblems(nextMissedProblems);
+          setAnswerHistory(nextAnswerHistory);
 
           setFeedback({
             status: 'success',
@@ -940,7 +1020,7 @@
           });
 
           setSolvedHistory(newHistory);
-          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems);
+          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory);
 
         } else {
           playSound('wrong', isMuted);
@@ -957,6 +1037,7 @@
 
           nextMissedProblems = addMissedProblem();
           setMissedProblems(nextMissedProblems);
+          setAnswerHistory(nextAnswerHistory);
 
           setFeedback({
             status: 'error',
@@ -965,7 +1046,7 @@
           });
 
           setSolvedHistory(newHistory);
-          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems);
+          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory);
         }
       };
 
@@ -1509,6 +1590,45 @@
                     </div>
                   ))}
                 </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 shadow-lg rounded-2xl sm:rounded-3xl p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h3 className="text-md font-bold heading-font text-slate-300">🧾 Answer History</h3>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Last {Math.min(answerHistory.length, MAX_ANSWER_HISTORY)}
+                  </span>
+                </div>
+
+                {answerHistory.length > 0 ? (
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {answerHistory.map(entry => (
+                      <div
+                        key={entry.id}
+                        className={`rounded-2xl border p-3 bg-slate-950/70 ${
+                          entry.correct ? 'border-emerald-500/20' : 'border-rose-500/20'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3 text-[11px] font-bold">
+                          <span className="font-mono text-slate-200">
+                            {entry.num1} {formatOperatorSymbol(entry.op)} {entry.num2} = {entry.userAnswer}
+                          </span>
+                          <span className={entry.correct ? 'text-emerald-400' : 'text-rose-400'}>
+                            {entry.correct ? 'Correct' : 'Missed'}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-slate-500 font-semibold">
+                          <span>Answer: {entry.correctAnswer}</span>
+                          <span>{entry.review ? 'Review' : formatAnswerHistoryTime(entry.answeredAt)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 font-semibold bg-slate-950 border border-slate-800 rounded-2xl p-3">
+                    Recent answers will appear after the next submitted quest.
+                  </p>
+                )}
               </div>
 
               <div className="bg-slate-900 border border-slate-800 shadow-lg rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-xs">
