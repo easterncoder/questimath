@@ -25,6 +25,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- Shared answer parsing and validation -->
   <script src="answer-validation.js"></script>
+  <script src="rank-progression.js"></script>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -244,13 +245,7 @@
       }
     };
 
-    const RANKS = [
-      { level: 1, name: "Arithmetic Squire", color: "from-amber-400 to-orange-500", desc: "Embarking on the math odyssey" },
-      { level: 2, name: "Number Warrior", color: "from-teal-400 to-emerald-500", desc: "Commanding multi-digit forces" },
-      { level: 3, name: "Equation Knight", color: "from-blue-400 to-indigo-500", desc: "Slaying the carrying & borrowing beasts" },
-      { level: 4, name: "Math Sorcerer", color: "from-fuchsia-400 to-purple-600", desc: "Unlocking advanced calculation spells" },
-      { level: 5, name: "Grandmaster Alchemist", color: "from-rose-400 to-rose-600", desc: "Master of ultimate arithmetic magic" }
-    ];
+    const { getRank, getRankProgressPercent, getRankXpGoal, normalizeLevel } = window.QuestiMathRanks;
 
     const BADGES = [
       { id: 'first_step', title: 'First Spark ⚡', desc: 'Solved your very first QuestiMath challenge correctly!', unlocked: false },
@@ -636,16 +631,16 @@
         answerSubmittedRef.current = false;
         
         let targetOps = [];
-        let targetLevel = level;
+        let targetLevel = normalizeLevel(level);
 
         if (gameMode === 'adventure') {
-          if (level === 1) targetOps = ['+', '-'];
-          else if (level === 2) targetOps = ['+', '-', '*'];
+          if (targetLevel === 1) targetOps = ['+', '-'];
+          else if (targetLevel === 2) targetOps = ['+', '-', '*'];
           else targetOps = ['+', '-', '*', '/'];
         } else {
           targetOps = Object.keys(practiceOps).filter(k => practiceOps[k]);
           if (targetOps.length === 0) targetOps = ['+'];
-          targetLevel = practiceLevel;
+          targetLevel = normalizeLevel(practiceLevel);
         }
 
         const op = targetOps[Math.floor(Math.random() * targetOps.length)];
@@ -679,6 +674,14 @@
             answer: quotient
           };
         };
+
+        /*
+         * Builds a consecutive integer range for generated high-rank division facts.
+         */
+        const buildRange = (min, max) => Array.from(
+          { length: Math.max(1, max - min + 1) },
+          (_, index) => min + index
+        );
 
         switch (targetLevel) {
           case 1:
@@ -771,6 +774,34 @@
               ({ num1, num2, answer } = buildDivisionProblem([12, 14, 15, 16, 18, 20, 24, 25, 30], [12, 14, 15, 16, 18, 20, 24, 25, 30]));
             }
             break;
+
+          default: {
+            const rankScale = Math.min(targetLevel - 5, 30);
+            const largeNumberMax = 999 + (rankScale * 125);
+            const multiplierMax = Math.min(99, 30 + (rankScale * 3));
+            const divisionMax = Math.min(60, 30 + rankScale);
+
+            if (op === '+') {
+              num1 = randomTenth(500, largeNumberMax);
+              num2 = randomTenth(300, largeNumberMax);
+              answer = roundToTenth(num1 + num2);
+            } else if (op === '-') {
+              num1 = randomTenth(500, largeNumberMax);
+              num2 = randomTenth(100, largeNumberMax - 100);
+              if (num1 < num2) [num1, num2] = [num2, num1];
+              answer = roundToTenth(num1 - num2);
+            } else if (op === '*') {
+              num1 = randomInt(20, multiplierMax);
+              num2 = randomInt(20, multiplierMax);
+              answer = num1 * num2;
+            } else {
+              ({ num1, num2, answer } = buildDivisionProblem(
+                buildRange(12, divisionMax),
+                buildRange(12, divisionMax)
+              ));
+            }
+            break;
+          }
         }
 
         setCurrentProblem({
@@ -915,13 +946,15 @@
 
           let nextLevelMessage = null;
           if (gameMode === 'adventure') {
-            const nextLvlGoal = level * 100;
-            if (nextXp >= nextLvlGoal && level < 5) {
-              nextLevel = level + 1;
+            while (nextXp >= getRankXpGoal(nextLevel)) {
+              nextLevel += 1;
+            }
+
+            if (nextLevel > level) {
               setLevel(nextLevel);
               playSound('levelUp', isMuted);
               window.triggerMathConfetti && window.triggerMathConfetti();
-              nextLevelMessage = `🌟 Rank Unlocked: ${RANKS[nextLevel - 1].name}! 👑`;
+              nextLevelMessage = `🌟 Rank Unlocked: ${getRank(nextLevel).name}! 👑`;
             }
           }
 
@@ -1000,9 +1033,7 @@
 
       const calcProgressPercent = () => {
         if (gameMode !== 'adventure') return 0;
-        const currentLvlLimit = (level - 1) * 100;
-        const relativeXP = xp - currentLvlLimit;
-        return Math.min(Math.max((relativeXP / 100) * 100, 0), 100);
+        return getRankProgressPercent(level, xp);
       };
 
       return (
@@ -1083,8 +1114,8 @@
                 </div>
 
                 {gameMode === 'adventure' && (
-                  <div className={`px-3 py-2 min-h-11 rounded-xl text-xs font-bold text-white bg-gradient-to-r ${RANKS[level - 1].color} shadow-md flex items-center justify-center col-span-2 min-[360px]:col-span-1`}>
-                    Rank {level}: {RANKS[level - 1].name}
+                  <div className={`px-3 py-2 min-h-11 rounded-xl text-xs font-bold text-white bg-gradient-to-r ${getRank(level).color} shadow-md flex items-center justify-center col-span-2 min-[360px]:col-span-1`}>
+                    Rank {level}: {getRank(level).name}
                   </div>
                 )}
 
@@ -1127,7 +1158,7 @@
                   <div className="min-h-10 rounded-xl bg-slate-950 border border-orange-500/20 text-orange-400 text-[11px] font-extrabold flex items-center justify-center">
                     🔥 {streak}
                   </div>
-                  <div className={`min-h-10 rounded-xl text-white text-[11px] font-extrabold bg-gradient-to-r ${RANKS[level - 1].color} flex items-center justify-center`}>
+                  <div className={`min-h-10 rounded-xl text-white text-[11px] font-extrabold bg-gradient-to-r ${getRank(level).color} flex items-center justify-center`}>
                     R{level}
                   </div>
                   <div className="min-h-10 rounded-xl bg-slate-950 border border-slate-800 text-indigo-300 text-[11px] font-extrabold flex items-center justify-center">
@@ -1152,7 +1183,7 @@
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Rank</span>
-                      <span className="text-indigo-300">{RANKS[level - 1].name}</span>
+                      <span className="text-indigo-300">{getRank(level).name}</span>
                     </div>
                     {gameMode === 'adventure' && (
                       <div>
@@ -1162,7 +1193,7 @@
                         </div>
                         <div className="h-2 rounded-full bg-slate-900 overflow-hidden">
                           <div
-                            className={`h-full rounded-full bg-gradient-to-r ${RANKS[level - 1].color}`}
+                            className={`h-full rounded-full bg-gradient-to-r ${getRank(level).color}`}
                             style={{ width: `${calcProgressPercent()}%` }}
                           ></div>
                         </div>
@@ -1200,13 +1231,13 @@
                   </div>
                   <div className="w-full bg-slate-950 h-3.5 rounded-full overflow-hidden p-0.5 border border-slate-800">
                     <div 
-                      className={`h-full rounded-full bg-gradient-to-r ${RANKS[level - 1].color} transition-all duration-500 shadow-[0_0_12px_rgba(99,102,241,0.3)]`}
+                      className={`h-full rounded-full bg-gradient-to-r ${getRank(level).color} transition-all duration-500 shadow-[0_0_12px_rgba(99,102,241,0.3)]`}
                       style={{ width: `${calcProgressPercent()}%` }}
                     ></div>
                   </div>
                   <div className="flex justify-between text-[11px] text-slate-500 mt-2 font-medium">
                     <span>Rank {level} ({xp % 100} / 100 XP)</span>
-                    <span>{level < 5 ? `Next Rank: ${RANKS[level].name}` : 'Max Rank Reached!'}</span>
+                    <span>Next Rank: {getRank(level + 1).name}</span>
                   </div>
                 </div>
               )}
