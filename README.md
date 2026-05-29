@@ -24,6 +24,7 @@ Then open `http://localhost:8000`.
 ## Project Structure
 
 - `index.html` contains the React application and Firebase bootstrap.
+- `rank-progression.js` defines rank metadata and endless rank progression helpers.
 - `manifest.json` defines the PWA install metadata.
 - `sw.js` provides app shell, runtime, and dependency caching.
 - `icon-192.png` and `icon-512.png` are the PWA icons.
