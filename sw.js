@@ -8,6 +8,10 @@ const APP_SHELL_ASSETS = [
   './index.html',
   './answer-validation.js',
   './rank-progression.js',
+  './audio-synthesizer.js',
+  './keypad.js',
+  './problem-card.js',
+  './stats-drawer.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
