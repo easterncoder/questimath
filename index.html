@@ -27,6 +27,7 @@
   <script src="answer-validation.js"></script>
   <script src="spaced-repetition.js"></script>
   <script src="rank-progression.js"></script>
+  <script src="practice-drills.js"></script>
   <script src="audio-synthesizer.js"></script>
   <script src="keypad.js"></script>
   <script src="problem-card.js"></script>
@@ -147,6 +148,7 @@
     const { isCorrectAnswer } = window.QuestiMathValidation;
     const { getDueReview, recordMiss, recordCorrectReview } = window.QuestiMathSpacedRepetition;
     const { playSound } = window.QuestiMathAudioSynthesizer;
+    const { TABLE_NUMBERS, buildTargetedProblem } = window.QuestiMathPracticeDrills;
     const { Keypad } = window.QuestiMathKeypad;
     const { ProblemCard } = window.QuestiMathProblemCard;
     const { StatsDrawer } = window.QuestiMathStatsDrawer;
@@ -266,6 +268,7 @@
       
       const [practiceOps, setPracticeOps] = useState({ '+': true, '-': true, '*': false, '/': false });
       const [practiceLevel, setPracticeLevel] = useState(1);
+      const [practiceTargets, setPracticeTargets] = useState([]);
 
       const [shakeActive, setShakeActive] = useState(false);
       const canvasRef = useRef(null);
@@ -571,7 +574,7 @@
         if (!loadingProgress) {
           generateNewQuest();
         }
-      }, [level, gameMode, practiceOps, practiceLevel, loadingProgress]);
+      }, [level, gameMode, practiceOps, practiceLevel, practiceTargets, loadingProgress]);
 
       // Achievement badge validation triggers
       useEffect(() => {
@@ -793,6 +796,14 @@
               ));
             }
             break;
+          }
+        }
+
+        if (gameMode === 'practice' && practiceTargets.length > 0) {
+          const targetedProblem = buildTargetedProblem(op, practiceTargets);
+
+          if (targetedProblem) {
+            ({ num1, num2, answer } = targetedProblem);
           }
         }
 
@@ -1396,6 +1407,34 @@
                         >
                           <span>{opObj.label}</span>
                           <span className="font-mono text-xs">{opObj.key === '*' ? '×' : opObj.key === '/' ? '÷' : opObj.key}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mb-5">
+                    <span className="text-xs text-slate-400 font-bold block mb-2 uppercase">Target Times Tables</span>
+                    <p className="text-[11px] text-slate-400 mb-3">Choose one or more numbers for multiplication and division. Leave all off for regular tier questions.</p>
+                    <div className="grid grid-cols-6 gap-2" role="group" aria-label="Target times tables">
+                      {TABLE_NUMBERS.map(number => (
+                        <button
+                          key={number}
+                          type="button"
+                          aria-label={`${number} times table`}
+                          aria-pressed={practiceTargets.includes(number)}
+                          onClick={() => {
+                            playSound('click', isMuted);
+                            setPracticeTargets(previous => previous.includes(number)
+                              ? previous.filter(target => target !== number)
+                              : [...previous, number]);
+                          }}
+                          className={`min-h-10 rounded-xl border text-xs font-extrabold transition-all ${
+                            practiceTargets.includes(number)
+                              ? 'bg-indigo-600/10 border-indigo-500 text-indigo-300'
+                              : 'bg-slate-950 border-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {number}
                         </button>
                       ))}
                     </div>
