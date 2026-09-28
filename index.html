@@ -25,12 +25,18 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- Shared modules -->
   <script src="answer-validation.js"></script>
+  <script src="spaced-repetition.js"></script>
   <script src="rank-progression.js"></script>
   <script src="boss-encounters.js"></script>
+  <script src="practice-drills.js"></script>
   <script src="audio-synthesizer.js"></script>
+  <script src="streak-feedback.js"></script>
   <script src="keypad.js"></script>
+  <script src="problem-equation.js"></script>
   <script src="problem-card.js"></script>
+  <script src="fact-mastery.js"></script>
   <script src="stats-drawer.js"></script>
+  <script src="blitz-mode.js"></script>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -143,7 +149,6 @@
     const APP_VERSION = '0.3.0';
     const LOCAL_PROGRESS_KEY = 'questimath.progress.v1';
     const AUTO_CONTINUE_SECONDS = 5;
-    const MAX_MISSED_PROBLEMS = 12;
     const MAX_ANSWER_HISTORY = 25;
     const { isCorrectAnswer } = window.QuestiMathValidation;
     const {
@@ -155,10 +160,15 @@
       queueBossMilestones,
       resolveBossAnswer
     } = window.QuestiMathBosses;
+    const { getDueReview, recordMiss, recordCorrectReview } = window.QuestiMathSpacedRepetition;
     const { playSound } = window.QuestiMathAudioSynthesizer;
+    const { TABLE_NUMBERS, buildTargetedProblem } = window.QuestiMathPracticeDrills;
     const { Keypad } = window.QuestiMathKeypad;
     const { ProblemCard } = window.QuestiMathProblemCard;
+    const { selectQuestionForm, formatEquation } = window.QuestiMathEquations;
     const { StatsDrawer } = window.QuestiMathStatsDrawer;
+    const { ROUND_SECONDS, BONUS_SECONDS, secondsRemaining, awardBonus, getHighScoreStorage, loadHighScore, saveHighScore } = window.QuestiMathBlitz;
+    const { recordFactAttempt } = window.QuestiMathFactMastery;
 
     /*
      * Returns the default progress shape used by local and cloud storage.
@@ -168,7 +178,7 @@
         level: 1,
         xp: 0,
         highestStreak: 0,
-        solvedHistory: { total: 0, correct: 0, wrong: 0, ops: {} },
+        solvedHistory: { total: 0, correct: 0, wrong: 0, ops: {}, facts: {} },
         missedProblems: [],
         answerHistory: [],
         boss: null,
@@ -193,6 +203,10 @@
           ops: {
             ...defaultProgress.solvedHistory.ops,
             ...((savedProgress.solvedHistory && savedProgress.solvedHistory.ops) || {})
+          },
+          facts: {
+            ...defaultProgress.solvedHistory.facts,
+            ...((savedProgress.solvedHistory && savedProgress.solvedHistory.facts) || {})
           }
         },
         missedProblems: Array.isArray(savedProgress.missedProblems) ? savedProgress.missedProblems : [],
@@ -238,6 +252,7 @@
 
 
     const { getRank, getRankProgressPercent, getRankXpGoal, normalizeLevel } = window.QuestiMathRanks;
+    const { getFlameTier, vibrateForAnswer } = window.QuestiMathStreakFeedback;
 
     const BADGES = [
       { id: 'first_step', title: 'First Spark ⚡', desc: 'Solved your very first QuestiMath challenge correctly!', unlocked: false },
@@ -248,6 +263,13 @@
       { id: 'half_century', title: 'Centurion Rookie 💯', desc: 'Got 50 correct answers in total.', unlocked: false },
       { id: 'max_level', title: 'Ultimate Sage 👑', desc: 'Reached the prestigious Level 5 rank.', unlocked: false }
     ];
+
+    /*
+     * Draws a flame whose color follows the active streak tier.
+     */
+    function FlameIcon() {
+      return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.2 2c.4 3.4-1.5 5-2.9 6.7-.7.9-1.1 1.8-.9 2.9-1.5-.5-2.4-1.8-2.7-3.4C3.9 10.4 3 12.7 3 15a9 9 0 0 0 18 0c0-4.9-3.3-8.5-8.8-13Zm-.2 19a4 4 0 0 1-4-4c0-1.8 1-3.1 2.2-4.5.2 1.3 1.1 2 1.8 2.5.3-1.2 1.3-2.2 2.2-3.1C15.8 13.5 16 15 16 17a4 4 0 0 1-4 4Z" /></svg>;
+    }
 
     function App() {
       const initialProgressRef = useRef(null);
@@ -261,9 +283,16 @@
       const [loadingProgress, setLoadingProgress] = useState(true);
 
       const [gameMode, setGameMode] = useState('adventure');
+      const [blitzStatus, setBlitzStatus] = useState('idle');
+      const [blitzSeconds, setBlitzSeconds] = useState(ROUND_SECONDS);
+      const [blitzScore, setBlitzScore] = useState(0);
+      const [blitzBest, setBlitzBest] = useState(() => loadHighScore(getHighScoreStorage()));
+      const blitzDeadlineRef = useRef(null);
+      const blitzScoreRef = useRef(0);
       const [level, setLevel] = useState(initialProgressRef.current.level);
       const [xp, setXp] = useState(initialProgressRef.current.xp);
       const [streak, setStreak] = useState(0);
+      const flameTier = getFlameTier(streak);
       const [highestStreak, setHighestStreak] = useState(initialProgressRef.current.highestStreak);
       const [currentProblem, setCurrentProblem] = useState(null);
       const [userAnswer, setUserAnswer] = useState('');
@@ -286,12 +315,63 @@
       
       const [practiceOps, setPracticeOps] = useState({ '+': true, '-': true, '*': false, '/': false });
       const [practiceLevel, setPracticeLevel] = useState(1);
+      const [practiceMissingOperands, setPracticeMissingOperands] = useState(false);
+      const [practiceTargets, setPracticeTargets] = useState([]);
 
       const [shakeActive, setShakeActive] = useState(false);
       const canvasRef = useRef(null);
       const inputRef = useRef(null);
       const keypadFlashTimeoutRef = useRef(null);
       const answerSubmittedRef = useRef(false);
+
+      /*
+       * Ends the current timed round and saves its score on this device.
+       */
+      const finishBlitz = () => {
+        if (blitzDeadlineRef.current === null) return;
+
+        blitzDeadlineRef.current = null;
+        setBlitzSeconds(0);
+        setBlitzStatus('finished');
+        setBlitzBest(currentBest => saveHighScore(getHighScoreStorage(), blitzScoreRef.current, currentBest));
+      };
+
+      /*
+       * Switches modes and abandons any active timed round.
+       */
+      const selectGameMode = (mode) => {
+        blitzDeadlineRef.current = null;
+        blitzScoreRef.current = 0;
+        setBlitzScore(0);
+        setBlitzSeconds(ROUND_SECONDS);
+        setBlitzStatus('idle');
+        setStreak(0);
+        setGameMode(mode);
+      };
+
+      /*
+       * Starts a fresh timed round with a new question.
+       */
+      const startBlitz = () => {
+        blitzScoreRef.current = 0;
+        setBlitzScore(0);
+        setBlitzSeconds(ROUND_SECONDS);
+        blitzDeadlineRef.current = Date.now() + ROUND_SECONDS * 1000;
+        setBlitzStatus('playing');
+        generateNewQuest();
+      };
+
+      useEffect(() => {
+        if (gameMode !== 'blitz' || blitzStatus !== 'playing') return undefined;
+
+        const timer = window.setInterval(() => {
+          const remaining = secondsRemaining(blitzDeadlineRef.current, Date.now());
+          setBlitzSeconds(remaining);
+          if (remaining === 0) finishBlitz();
+        }, 200);
+
+        return () => window.clearInterval(timer);
+      }, [gameMode, blitzStatus]);
 
       const [dailyGoalMax] = useState(150);
 
@@ -308,6 +388,7 @@
       };
 
       const handleAnswerInput = (value) => {
+        if (gameMode === 'blitz' && blitzStatus !== 'playing') return;
         if (feedback && feedback.status) return;
 
         playSound('click', isMuted);
@@ -527,7 +608,7 @@
         };
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-      }, [userAnswer, feedback, currentProblem]);
+      }, [userAnswer, feedback, currentProblem, gameMode, blitzStatus]);
 
       // Confetti canvas setup
       useEffect(() => {
@@ -604,7 +685,7 @@
         if (!loadingProgress) {
           generateNewQuest();
         }
-      }, [level, gameMode, practiceOps, practiceLevel, loadingProgress]);
+      }, [level, gameMode, practiceOps, practiceLevel, practiceMissingOperands, practiceTargets, loadingProgress]);
 
       // Achievement badge validation triggers
       useEffect(() => {
@@ -649,6 +730,13 @@
         setUserAnswer('');
         setFeedback(null);
         answerSubmittedRef.current = false;
+
+        const dueReview = getDueReview(missedProblems, solvedHistory.total);
+
+        if (dueReview) {
+          setCurrentProblem(createReviewProblem(dueReview));
+          return;
+        }
         
         let targetOps = [];
         let targetLevel = normalizeLevel(level);
@@ -657,6 +745,9 @@
           if (targetLevel === 1) targetOps = ['+', '-'];
           else if (targetLevel === 2) targetOps = ['+', '-', '*'];
           else targetOps = ['+', '-', '*', '/'];
+        } else if (gameMode === 'blitz') {
+          targetOps = ['+', '-', '*', '/'];
+          targetLevel = 2;
         } else {
           targetOps = Object.keys(practiceOps).filter(k => practiceOps[k]);
           if (targetOps.length === 0) targetOps = ['+'];
@@ -681,6 +772,10 @@
          */
         const roundToTenth = (value) => Number(value.toFixed(1));
 
+        const masteryFact = gameMode === 'practice' && ['*', '/'].includes(op) && Math.random() < 0.25
+          ? window.QuestiMathFactMastery.getRandomPracticeFact(op)
+          : null;
+
         /*
          * Builds an exact whole-number division problem from fact-family values.
          */
@@ -703,7 +798,11 @@
           (_, index) => min + index
         );
 
-        switch (targetLevel) {
+        switch (masteryFact ? 0 : targetLevel) {
+          case 0:
+            ({ num1, num2, answer } = masteryFact);
+            break;
+
           case 1:
             if (op === '+') {
               num1 = Math.floor(Math.random() * 8) + 2;
@@ -824,14 +923,32 @@
           }
         }
 
-        setCurrentProblem({
+        if (gameMode === 'practice' && practiceTargets.length > 0) {
+          const targetedProblem = buildTargetedProblem(op, practiceTargets);
+
+          if (targetedProblem) {
+            ({ num1, num2, answer } = targetedProblem);
+          }
+        }
+
+        const problem = {
           num1,
           num2,
           op,
           answer,
           startTime: Date.now()
-        });
+        };
+        setCurrentProblem(selectQuestionForm(problem, gameMode, targetLevel, practiceMissingOperands));
       };
+
+      /*
+       * Builds an active review quest from a saved missed problem.
+       */
+      const createReviewProblem = (missedProblem) => ({
+        ...missedProblem,
+        reviewId: missedProblem.id,
+        startTime: Date.now()
+      });
 
       /*
        * Loads the most recent saved missed problem into the active answer flow.
@@ -847,41 +964,7 @@
         setUserAnswer('');
         setFeedback(null);
         answerSubmittedRef.current = false;
-        setCurrentProblem({
-          ...missedProblem,
-          reviewId: missedProblem.id,
-          startTime: Date.now()
-        });
-      };
-
-      /*
-       * Stores a newly missed problem without duplicating review attempts.
-       */
-      const addMissedProblem = () => {
-        if (currentProblem.reviewId) {
-          return missedProblems;
-        }
-
-        const nextMissedProblem = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          num1: currentProblem.num1,
-          num2: currentProblem.num2,
-          op: currentProblem.op,
-          answer: currentProblem.answer
-        };
-
-        return [nextMissedProblem, ...missedProblems].slice(0, MAX_MISSED_PROBLEMS);
-      };
-
-      /*
-       * Removes a reviewed problem once the player answers it correctly.
-       */
-      const clearReviewedProblem = () => {
-        if (!currentProblem.reviewId) {
-          return missedProblems;
-        }
-
-        return missedProblems.filter(problem => problem.id !== currentProblem.reviewId);
+        setCurrentProblem(createReviewProblem(missedProblem));
       };
 
       /*
@@ -892,6 +975,8 @@
         num1: currentProblem.num1,
         num2: currentProblem.num2,
         op: currentProblem.op,
+        missingOperand: currentProblem.missingOperand,
+        result: currentProblem.result,
         userAnswer: userAnswer.trim(),
         correctAnswer: currentProblem.answer,
         correct,
@@ -919,21 +1004,27 @@
       };
 
       /*
-       * Converts stored operators to the display symbols players see.
+       * Explains the inverse operation for a missing operand question.
        */
-      const formatOperatorSymbol = (op) => {
-        if (op === '*') {
-          return '×';
+      const generateHintExplanation = (problem) => {
+        const { num1, num2, op, answer: actualAns, missingOperand, result } = problem;
+
+        if (missingOperand === 'num2' && op === '+') {
+          return `Subtract the known part from the total: ${result} - ${num1} = ${actualAns}.`;
         }
 
-        if (op === '/') {
-          return '÷';
+        if (missingOperand === 'num1' && op === '-') {
+          return `Add the difference and the known part: ${result} + ${num2} = ${actualAns}.`;
         }
 
-        return op;
-      };
+        if (missingOperand === 'num1' && op === '*') {
+          return `Divide the product by the known factor: ${result} ÷ ${num2} = ${actualAns}.`;
+        }
 
-      const generateHintExplanation = (num1, num2, op, actualAns) => {
+        if (missingOperand === 'num2' && op === '/') {
+          return `Divide the total by the quotient: ${num1} ÷ ${result} = ${actualAns}.`;
+        }
+
         let text = "";
         if (op === '+') {
           const splitOnes1 = num1 % 10;
@@ -966,6 +1057,31 @@
       const checkAnswer = () => {
         if (!currentProblem || userAnswer.trim() === '' || answerSubmittedRef.current) return;
 
+        if (gameMode === 'blitz') {
+          if (blitzStatus !== 'playing') return;
+          if (secondsRemaining(blitzDeadlineRef.current, Date.now()) === 0) {
+            finishBlitz();
+            return;
+          }
+
+          const correct = isCorrectAnswer(userAnswer, currentProblem.answer);
+          const elapsedSeconds = (Date.now() - currentProblem.startTime) / 1000;
+          answerSubmittedRef.current = true;
+
+          if (correct) {
+            playSound('correct', isMuted);
+            blitzScoreRef.current += 1;
+            setBlitzScore(blitzScoreRef.current);
+            blitzDeadlineRef.current = awardBonus(blitzDeadlineRef.current, true, elapsedSeconds);
+            setBlitzSeconds(secondsRemaining(blitzDeadlineRef.current, Date.now()));
+            generateNewQuest();
+          } else {
+            playSound('wrong', isMuted);
+            setFeedback({ status: 'error', text: `The answer was ${currentProblem.answer}. Keep going!`, hint: '' });
+          }
+          return;
+        }
+
         answerSubmittedRef.current = true;
 
         const correct = isCorrectAnswer(userAnswer, currentProblem.answer);
@@ -978,7 +1094,8 @@
           total: solvedHistory.total + 1,
           correct: solvedHistory.correct + (correct ? 1 : 0),
           wrong: solvedHistory.wrong + (correct ? 0 : 1),
-          ops: updatedOps
+          ops: updatedOps,
+          facts: recordFactAttempt(solvedHistory.facts, currentProblem, correct, timeElapsed)
         };
         const nextAnswerHistory = addAnswerHistoryEntry(createAnswerHistoryEntry(correct));
 
@@ -992,7 +1109,9 @@
         let nextPendingBosses = pendingBosses;
 
         if (correct) {
-          playSound('correct', isMuted);
+          nextStreak = streak + 1;
+          playSound('correct', isMuted, null, nextStreak);
+          vibrateForAnswer(true, streak);
           const baseXP = 15;
           const streakBonus = Math.min(Math.floor(streak / 3) * 5, 20);
           const earnedXP = baseXP + streakBonus;
@@ -1000,7 +1119,6 @@
           nextXp = xp + earnedXP;
           setXp(nextXp);
           
-          nextStreak = streak + 1;
           setStreak(nextStreak);
           
           if (nextStreak > highestStreak) {
@@ -1050,17 +1168,19 @@
           }
 
           const streakText = `Streak: ${nextStreak}`;
-          nextMissedProblems = clearReviewedProblem();
+          nextMissedProblems = recordCorrectReview(missedProblems, currentProblem.reviewId, newHistory.total);
           setMissedProblems(nextMissedProblems);
           setAnswerHistory(nextAnswerHistory);
 
           setFeedback({
             status: 'success',
-            text: nextLevelMessage
-              ? `${nextLevelMessage} ${streakText}.`
-              : currentProblem.reviewId
-                ? `Mistake cleared. ${streakText}. 🎉`
-              : `Brilliant! +${earnedXP} XP. ${streakText}${streakBonus > 0 ? `, +${streakBonus} bonus XP` : ''}. 🎉`,
+            text: currentProblem.reviewId
+              ? `${nextLevelMessage ? `${nextLevelMessage} ` : ''}${nextMissedProblems.length < missedProblems.length
+                ? 'Mistake cleared.'
+                : 'Good review! One more correct answer to clear this mistake.'} ${streakText}. 🎉`
+              : nextLevelMessage
+                ? `${nextLevelMessage} ${streakText}.`
+                : `Brilliant! +${earnedXP} XP. ${streakText}${streakBonus > 0 ? `, +${streakBonus} bonus XP` : ''}. 🎉`,
             hint: ''
           });
 
@@ -1069,6 +1189,7 @@
 
         } else {
           playSound('wrong', isMuted);
+          vibrateForAnswer(false, streak);
           setStreak(0);
           const bossResult = gameMode === 'adventure' ? resolveBossAnswer(boss, false, streak) : null;
           if (bossResult && bossResult.strike > 0) {
@@ -1078,14 +1199,14 @@
           setShakeActive(true);
           setTimeout(() => setShakeActive(false), 500);
 
-          const hintExplanation = generateHintExplanation(
-            currentProblem.num1,
-            currentProblem.num2,
-            currentProblem.op,
-            currentProblem.answer
-          );
+          const hintExplanation = generateHintExplanation(currentProblem);
 
-          nextMissedProblems = addMissedProblem();
+          nextMissedProblems = recordMiss(
+            missedProblems,
+            currentProblem,
+            newHistory.total,
+            `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          );
           setMissedProblems(nextMissedProblems);
           setAnswerHistory(nextAnswerHistory);
 
@@ -1101,6 +1222,7 @@
       };
 
       const nextProblem = () => {
+        if (gameMode === 'blitz' && blitzStatus !== 'playing') return;
         playSound('click', isMuted);
         generateNewQuest();
       };
@@ -1109,7 +1231,7 @@
        * Advances to the next quest after feedback has been visible briefly.
        */
       useEffect(() => {
-        if (feedback?.status !== 'success') {
+        if (feedback?.status !== 'success' || gameMode === 'blitz') {
           setContinueCountdown(null);
           return undefined;
         }
@@ -1127,7 +1249,7 @@
           window.clearInterval(countdownTimer);
           window.clearTimeout(continueTimer);
         };
-      }, [feedback]);
+      }, [feedback, gameMode]);
 
       const calcProgressPercent = () => {
         if (gameMode !== 'adventure') return 0;
@@ -1157,16 +1279,22 @@
 
                 <div className="hidden md:flex bg-slate-950 p-1 rounded-xl border border-slate-800 w-auto">
                   <button 
-                    onClick={() => { setGameMode('adventure'); setStreak(0); }}
+                    onClick={() => selectGameMode('adventure')}
                     className={`min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${gameMode === 'adventure' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                   >
                     🏆 Adventure
                   </button>
                   <button 
-                    onClick={() => { setGameMode('practice'); setStreak(0); }}
+                    onClick={() => selectGameMode('practice')}
                     className={`min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${gameMode === 'practice' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                   >
                     🎯 Practice
+                  </button>
+                  <button
+                    onClick={() => selectGameMode('blitz')}
+                    className={`min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${gameMode === 'blitz' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    ⚡ Blitz
                   </button>
                 </div>
               </div>
@@ -1207,8 +1335,8 @@
                   )}
                 </div>
 
-                <div className={`flex items-center justify-center gap-2 bg-slate-950 px-3 py-2 min-h-11 rounded-xl border border-orange-500/20 text-orange-400 font-bold text-xs sm:text-sm animate-bounce-subtle ${streak > 0 ? 'ring-1 ring-orange-500/30 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'opacity-40'}`}>
-                  <span>🔥 Streak: {streak}</span>
+                <div className={`flex items-center justify-center gap-2 bg-slate-950 px-3 py-2 min-h-11 rounded-xl border font-bold text-xs sm:text-sm ${flameTier.border} ${flameTier.color} ${streak > 0 ? `animate-bounce-subtle ${flameTier.glow}` : 'opacity-40'}`} aria-label={`${flameTier.name}, streak ${streak}`}>
+                  <FlameIcon /><span>Streak: {streak}</span>
                 </div>
 
                 {gameMode === 'adventure' && (
@@ -1236,10 +1364,10 @@
               </div>
 
               <div className="md:hidden">
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-4 min-[400px]:grid-cols-7 gap-2">
                   <button
                     type="button"
-                    onClick={() => { setGameMode('adventure'); setStreak(0); }}
+                    onClick={() => selectGameMode('adventure')}
                     aria-label="Adventure mode"
                     className={`min-h-10 rounded-xl border text-sm font-bold ${gameMode === 'adventure' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}
                   >
@@ -1247,14 +1375,22 @@
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setGameMode('practice'); setStreak(0); }}
+                    onClick={() => selectGameMode('practice')}
                     aria-label="Practice mode"
                     className={`min-h-10 rounded-xl border text-sm font-bold ${gameMode === 'practice' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}
                   >
                     🎯
                   </button>
-                  <div className="min-h-10 rounded-xl bg-slate-950 border border-orange-500/20 text-orange-400 text-[11px] font-extrabold flex items-center justify-center">
-                    🔥 {streak}
+                  <button
+                    type="button"
+                    onClick={() => selectGameMode('blitz')}
+                    aria-label="Blitz mode"
+                    className={`min-h-10 rounded-xl border text-sm font-bold ${gameMode === 'blitz' ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}
+                  >
+                    ⚡
+                  </button>
+                  <div className={`min-h-10 rounded-xl bg-slate-950 border text-[11px] font-extrabold flex items-center justify-center ${flameTier.border} ${flameTier.color} ${flameTier.glow}`} aria-label={`${flameTier.name}, streak ${streak}`}>
+                    <FlameIcon /> {streak}
                   </div>
                   <div className={`min-h-10 rounded-xl text-white text-[11px] font-extrabold bg-gradient-to-r ${getRank(level).color} flex items-center justify-center`}>
                     R{level}
@@ -1277,7 +1413,7 @@
                   <div className="mt-2 rounded-2xl bg-slate-950 border border-slate-800 p-3 text-[11px] text-slate-400 font-bold space-y-2">
                     <div className="flex items-center justify-between">
                       <span>Mode</span>
-                      <span className="text-slate-200">{gameMode === 'adventure' ? 'Adventure' : `Practice Tier ${practiceLevel}`}</span>
+                      <span className="text-slate-200">{gameMode === 'adventure' ? 'Adventure' : gameMode === 'blitz' ? 'Blitz' : `Practice Tier ${practiceLevel}`}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Rank</span>
@@ -1380,11 +1516,31 @@
 
                 <div className="text-center mb-6">
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-500 bg-slate-950 border border-slate-800 px-3 py-1 rounded-full">
-                    {gameMode === 'adventure' ? `Quest Level ${level}` : 'Practice Mode'}
+                    {gameMode === 'adventure' ? `Quest Level ${level}` : gameMode === 'blitz' ? 'Blitz Mode' : 'Practice Mode'}
                   </span>
                 </div>
 
-                {loadingProgress ? (
+                {gameMode === 'blitz' && (
+                  <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center" aria-live="polite">
+                    <div className="flex justify-center gap-6 font-bold text-amber-300">
+                      <span>⏱ {blitzSeconds}s</span>
+                      <span>Score: {blitzScore}</span>
+                      <span>Best: {blitzBest}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-300">Correct answers within 5 seconds earn +{BONUS_SECONDS}s.</p>
+                  </div>
+                )}
+
+                {gameMode === 'blitz' && blitzStatus !== 'playing' ? (
+                  <div className="py-12 text-center">
+                    <h2 className="text-2xl font-extrabold heading-font text-amber-300">
+                      {blitzStatus === 'finished' ? `Time up! You solved ${blitzScore} ${blitzScore === 1 ? 'problem' : 'problems'}.` : '60 seconds. How many can you solve?'}
+                    </h2>
+                    <button type="button" onClick={startBlitz} disabled={loadingProgress} className="mt-6 rounded-xl bg-amber-600 px-8 py-3 font-bold text-white hover:bg-amber-500 disabled:opacity-50">
+                      {blitzStatus === 'finished' ? 'Play Again' : 'Start Blitz'}
+                    </button>
+                  </div>
+                ) : loadingProgress ? (
                   <div className="flex flex-col items-center justify-center py-16">
                     <svg className="animate-spin h-10 w-10 text-indigo-500 mb-4" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1405,7 +1561,7 @@
                   />
                 )}
 
-                {!loadingProgress && (
+                {!loadingProgress && (gameMode !== 'blitz' || blitzStatus === 'playing') && (
                   <div className="mt-6 max-w-sm mx-auto">
                     <Keypad
                       onAnswerInput={handleAnswerInput}
@@ -1452,7 +1608,7 @@
                   <button
                     type="button"
                     onClick={startMistakeReview}
-                    disabled={missedProblems.length === 0}
+                    disabled={missedProblems.length === 0 || gameMode === 'blitz'}
                     className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed transition-all"
                   >
                     Review
@@ -1462,7 +1618,7 @@
                   <div className="text-[11px] text-slate-400 font-bold bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 flex items-center justify-between">
                     <span>Next miss</span>
                     <span className="font-mono text-indigo-300">
-                      {missedProblems[0].num1} {missedProblems[0].op === '*' ? '×' : missedProblems[0].op === '/' ? '÷' : missedProblems[0].op} {missedProblems[0].num2}
+                      {formatEquation(missedProblems[0])}
                     </span>
                   </div>
                 )}
@@ -1499,6 +1655,42 @@
                         >
                           <span>{opObj.label}</span>
                           <span className="font-mono text-xs">{opObj.key === '*' ? '×' : opObj.key === '/' ? '÷' : opObj.key}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setPracticeMissingOperands(enabled => !enabled)}
+                    aria-pressed={practiceMissingOperands}
+                    className={`mb-5 w-full rounded-xl border px-3 py-3 text-left text-xs font-bold ${practiceMissingOperands ? 'border-indigo-500 bg-indigo-600/10 text-indigo-300' : 'border-slate-800 bg-slate-950 text-slate-400'}`}
+                  >
+                    Missing operand questions {practiceMissingOperands ? 'On' : 'Off'}
+                  </button>
+                  <div className="mb-5">
+                    <span className="text-xs text-slate-400 font-bold block mb-2 uppercase">Target Times Tables</span>
+                    <p className="text-[11px] text-slate-400 mb-3">Choose one or more numbers for multiplication and division. Leave all off for regular tier questions.</p>
+                    <div className="grid grid-cols-6 gap-2" role="group" aria-label="Target times tables">
+                      {TABLE_NUMBERS.map(number => (
+                        <button
+                          key={number}
+                          type="button"
+                          aria-label={`${number} times table`}
+                          aria-pressed={practiceTargets.includes(number)}
+                          onClick={() => {
+                            playSound('click', isMuted);
+                            setPracticeTargets(previous => previous.includes(number)
+                              ? previous.filter(target => target !== number)
+                              : [...previous, number]);
+                          }}
+                          className={`min-h-10 rounded-xl border text-xs font-extrabold transition-all ${
+                            practiceTargets.includes(number)
+                              ? 'bg-indigo-600/10 border-indigo-500 text-indigo-300'
+                              : 'bg-slate-950 border-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {number}
                         </button>
                       ))}
                     </div>
@@ -1574,7 +1766,7 @@
                       >
                         <div className="flex items-center justify-between gap-3 text-[11px] font-bold">
                           <span className="font-mono text-slate-200">
-                            {entry.num1} {formatOperatorSymbol(entry.op)} {entry.num2} = {entry.userAnswer}
+                            {formatEquation(entry, entry.userAnswer)}
                           </span>
                           <span className={entry.correct ? 'text-emerald-400' : 'text-rose-400'}>
                             {entry.correct ? 'Correct' : 'Missed'}
