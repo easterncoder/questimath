@@ -30,6 +30,7 @@
   <script src="keypad.js"></script>
   <script src="problem-card.js"></script>
   <script src="stats-drawer.js"></script>
+  <script src="blitz-mode.js"></script>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -149,6 +150,7 @@
     const { Keypad } = window.QuestiMathKeypad;
     const { ProblemCard } = window.QuestiMathProblemCard;
     const { StatsDrawer } = window.QuestiMathStatsDrawer;
+    const { ROUND_SECONDS, BONUS_SECONDS, secondsRemaining, awardBonus, loadHighScore, saveHighScore } = window.QuestiMathBlitz;
 
     /*
      * Returns the default progress shape used by local and cloud storage.
@@ -247,6 +249,12 @@
       const [loadingProgress, setLoadingProgress] = useState(true);
 
       const [gameMode, setGameMode] = useState('adventure');
+      const [blitzStatus, setBlitzStatus] = useState('idle');
+      const [blitzSeconds, setBlitzSeconds] = useState(ROUND_SECONDS);
+      const [blitzScore, setBlitzScore] = useState(0);
+      const [blitzBest, setBlitzBest] = useState(() => loadHighScore(localStorage));
+      const blitzDeadlineRef = useRef(null);
+      const blitzScoreRef = useRef(0);
       const [level, setLevel] = useState(initialProgressRef.current.level);
       const [xp, setXp] = useState(initialProgressRef.current.xp);
       const [streak, setStreak] = useState(0);
@@ -272,6 +280,55 @@
       const keypadFlashTimeoutRef = useRef(null);
       const answerSubmittedRef = useRef(false);
 
+      /*
+       * Ends the current timed round and saves its score on this device.
+       */
+      const finishBlitz = () => {
+        if (blitzDeadlineRef.current === null) return;
+
+        blitzDeadlineRef.current = null;
+        setBlitzSeconds(0);
+        setBlitzStatus('finished');
+        setBlitzBest(currentBest => saveHighScore(localStorage, blitzScoreRef.current, currentBest));
+      };
+
+      /*
+       * Switches modes and abandons any active timed round.
+       */
+      const selectGameMode = (mode) => {
+        blitzDeadlineRef.current = null;
+        blitzScoreRef.current = 0;
+        setBlitzScore(0);
+        setBlitzSeconds(ROUND_SECONDS);
+        setBlitzStatus('idle');
+        setStreak(0);
+        setGameMode(mode);
+      };
+
+      /*
+       * Starts a fresh timed round with a new question.
+       */
+      const startBlitz = () => {
+        blitzScoreRef.current = 0;
+        setBlitzScore(0);
+        setBlitzSeconds(ROUND_SECONDS);
+        blitzDeadlineRef.current = Date.now() + ROUND_SECONDS * 1000;
+        setBlitzStatus('playing');
+        generateNewQuest();
+      };
+
+      useEffect(() => {
+        if (gameMode !== 'blitz' || blitzStatus !== 'playing') return undefined;
+
+        const timer = window.setInterval(() => {
+          const remaining = secondsRemaining(blitzDeadlineRef.current, Date.now());
+          setBlitzSeconds(remaining);
+          if (remaining === 0) finishBlitz();
+        }, 200);
+
+        return () => window.clearInterval(timer);
+      }, [gameMode, blitzStatus]);
+
       const [dailyGoalMax] = useState(150);
 
       const focusAnswerInput = () => {
@@ -287,6 +344,7 @@
       };
 
       const handleAnswerInput = (value) => {
+        if (gameMode === 'blitz' && blitzStatus !== 'playing') return;
         if (feedback && feedback.status) return;
 
         playSound('click', isMuted);
@@ -493,7 +551,7 @@
         };
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-      }, [userAnswer, feedback, currentProblem]);
+      }, [userAnswer, feedback, currentProblem, gameMode, blitzStatus]);
 
       // Confetti canvas setup
       useEffect(() => {
@@ -621,6 +679,9 @@
           if (targetLevel === 1) targetOps = ['+', '-'];
           else if (targetLevel === 2) targetOps = ['+', '-', '*'];
           else targetOps = ['+', '-', '*', '/'];
+        } else if (gameMode === 'blitz') {
+          targetOps = ['+', '-', '*', '/'];
+          targetLevel = 2;
         } else {
           targetOps = Object.keys(practiceOps).filter(k => practiceOps[k]);
           if (targetOps.length === 0) targetOps = ['+'];
@@ -930,6 +991,31 @@
       const checkAnswer = () => {
         if (!currentProblem || userAnswer.trim() === '' || answerSubmittedRef.current) return;
 
+        if (gameMode === 'blitz') {
+          if (blitzStatus !== 'playing') return;
+          if (secondsRemaining(blitzDeadlineRef.current, Date.now()) === 0) {
+            finishBlitz();
+            return;
+          }
+
+          const correct = isCorrectAnswer(userAnswer, currentProblem.answer);
+          const elapsedSeconds = (Date.now() - currentProblem.startTime) / 1000;
+          answerSubmittedRef.current = true;
+
+          if (correct) {
+            playSound('correct', isMuted);
+            blitzScoreRef.current += 1;
+            setBlitzScore(blitzScoreRef.current);
+            blitzDeadlineRef.current = awardBonus(blitzDeadlineRef.current, true, elapsedSeconds);
+            setBlitzSeconds(secondsRemaining(blitzDeadlineRef.current, Date.now()));
+            generateNewQuest();
+          } else {
+            playSound('wrong', isMuted);
+            setFeedback({ status: 'error', text: `The answer was ${currentProblem.answer}. Keep going!`, hint: '' });
+          }
+          return;
+        }
+
         answerSubmittedRef.current = true;
 
         const correct = isCorrectAnswer(userAnswer, currentProblem.answer);
@@ -1039,6 +1125,7 @@
       };
 
       const nextProblem = () => {
+        if (gameMode === 'blitz' && blitzStatus !== 'playing') return;
         playSound('click', isMuted);
         generateNewQuest();
       };
@@ -1047,7 +1134,7 @@
        * Advances to the next quest after feedback has been visible briefly.
        */
       useEffect(() => {
-        if (feedback?.status !== 'success') {
+        if (feedback?.status !== 'success' || gameMode === 'blitz') {
           setContinueCountdown(null);
           return undefined;
         }
@@ -1065,7 +1152,7 @@
           window.clearInterval(countdownTimer);
           window.clearTimeout(continueTimer);
         };
-      }, [feedback]);
+      }, [feedback, gameMode]);
 
       const calcProgressPercent = () => {
         if (gameMode !== 'adventure') return 0;
@@ -1095,16 +1182,22 @@
 
                 <div className="hidden md:flex bg-slate-950 p-1 rounded-xl border border-slate-800 w-auto">
                   <button 
-                    onClick={() => { setGameMode('adventure'); setStreak(0); }}
+                    onClick={() => selectGameMode('adventure')}
                     className={`min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${gameMode === 'adventure' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                   >
                     🏆 Adventure
                   </button>
                   <button 
-                    onClick={() => { setGameMode('practice'); setStreak(0); }}
+                    onClick={() => selectGameMode('practice')}
                     className={`min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${gameMode === 'practice' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                   >
                     🎯 Practice
+                  </button>
+                  <button
+                    onClick={() => selectGameMode('blitz')}
+                    className={`min-h-11 px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${gameMode === 'blitz' ? 'bg-amber-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    ⚡ Blitz
                   </button>
                 </div>
               </div>
@@ -1174,10 +1267,10 @@
               </div>
 
               <div className="md:hidden">
-                <div className="grid grid-cols-6 gap-2">
+                <div className="grid grid-cols-4 min-[400px]:grid-cols-7 gap-2">
                   <button
                     type="button"
-                    onClick={() => { setGameMode('adventure'); setStreak(0); }}
+                    onClick={() => selectGameMode('adventure')}
                     aria-label="Adventure mode"
                     className={`min-h-10 rounded-xl border text-sm font-bold ${gameMode === 'adventure' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}
                   >
@@ -1185,11 +1278,19 @@
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setGameMode('practice'); setStreak(0); }}
+                    onClick={() => selectGameMode('practice')}
                     aria-label="Practice mode"
                     className={`min-h-10 rounded-xl border text-sm font-bold ${gameMode === 'practice' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}
                   >
                     🎯
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectGameMode('blitz')}
+                    aria-label="Blitz mode"
+                    className={`min-h-10 rounded-xl border text-sm font-bold ${gameMode === 'blitz' ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}
+                  >
+                    ⚡
                   </button>
                   <div className="min-h-10 rounded-xl bg-slate-950 border border-orange-500/20 text-orange-400 text-[11px] font-extrabold flex items-center justify-center">
                     🔥 {streak}
@@ -1215,7 +1316,7 @@
                   <div className="mt-2 rounded-2xl bg-slate-950 border border-slate-800 p-3 text-[11px] text-slate-400 font-bold space-y-2">
                     <div className="flex items-center justify-between">
                       <span>Mode</span>
-                      <span className="text-slate-200">{gameMode === 'adventure' ? 'Adventure' : `Practice Tier ${practiceLevel}`}</span>
+                      <span className="text-slate-200">{gameMode === 'adventure' ? 'Adventure' : gameMode === 'blitz' ? 'Blitz' : `Practice Tier ${practiceLevel}`}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Rank</span>
@@ -1287,11 +1388,31 @@
 
                 <div className="text-center mb-6">
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-500 bg-slate-950 border border-slate-800 px-3 py-1 rounded-full">
-                    {gameMode === 'adventure' ? `Quest Level ${level}` : 'Practice Mode'}
+                    {gameMode === 'adventure' ? `Quest Level ${level}` : gameMode === 'blitz' ? 'Blitz Mode' : 'Practice Mode'}
                   </span>
                 </div>
 
-                {loadingProgress ? (
+                {gameMode === 'blitz' && (
+                  <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center" aria-live="polite">
+                    <div className="flex justify-center gap-6 font-bold text-amber-300">
+                      <span>⏱ {blitzSeconds}s</span>
+                      <span>Score: {blitzScore}</span>
+                      <span>Best: {blitzBest}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-300">Correct answers within 5 seconds earn +{BONUS_SECONDS}s.</p>
+                  </div>
+                )}
+
+                {gameMode === 'blitz' && blitzStatus !== 'playing' ? (
+                  <div className="py-12 text-center">
+                    <h2 className="text-2xl font-extrabold heading-font text-amber-300">
+                      {blitzStatus === 'finished' ? `Time up! You solved ${blitzScore} ${blitzScore === 1 ? 'problem' : 'problems'}.` : '60 seconds. How many can you solve?'}
+                    </h2>
+                    <button type="button" onClick={startBlitz} disabled={loadingProgress} className="mt-6 rounded-xl bg-amber-600 px-8 py-3 font-bold text-white hover:bg-amber-500 disabled:opacity-50">
+                      {blitzStatus === 'finished' ? 'Play Again' : 'Start Blitz'}
+                    </button>
+                  </div>
+                ) : loadingProgress ? (
                   <div className="flex flex-col items-center justify-center py-16">
                     <svg className="animate-spin h-10 w-10 text-indigo-500 mb-4" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -1312,7 +1433,7 @@
                   />
                 )}
 
-                {!loadingProgress && (
+                {!loadingProgress && (gameMode !== 'blitz' || blitzStatus === 'playing') && (
                   <div className="mt-6 max-w-sm mx-auto">
                     <Keypad
                       onAnswerInput={handleAnswerInput}
@@ -1359,7 +1480,7 @@
                   <button
                     type="button"
                     onClick={startMistakeReview}
-                    disabled={missedProblems.length === 0}
+                    disabled={missedProblems.length === 0 || gameMode === 'blitz'}
                     className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed transition-all"
                   >
                     Review

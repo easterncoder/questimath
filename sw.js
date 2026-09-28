@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'questimath-0.3.0';
+const CACHE_VERSION = 'questimath-0.3.1';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-app-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const DEPENDENCY_CACHE = `${CACHE_VERSION}-dependencies`;
@@ -12,6 +12,7 @@ const APP_SHELL_ASSETS = [
   './keypad.js',
   './problem-card.js',
   './stats-drawer.js',
+  './blitz-mode.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
