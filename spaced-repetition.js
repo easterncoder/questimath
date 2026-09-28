@@ -12,7 +12,7 @@
   /*
    * Records a miss and schedules its next review after three other answers.
    */
-  function recordMiss(problems, currentProblem, answeredCount, limit, id) {
+  function recordMiss(problems, currentProblem, answeredCount, id) {
     if (currentProblem.reviewId) {
       return problems.map(problem => problem.id === currentProblem.reviewId
         ? { ...problem, correctReviews: 0, nextReviewAt: answeredCount + FIRST_REVIEW_GAP }
@@ -29,7 +29,7 @@
       nextReviewAt: answeredCount + FIRST_REVIEW_GAP
     };
 
-    return [missedProblem, ...problems].slice(0, limit);
+    return [missedProblem, ...problems];
   }
 
   /*
