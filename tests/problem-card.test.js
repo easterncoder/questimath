@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const problemCardModule = require('../problem-card.js');
+const { makeMissingOperandProblem } = require('../problem-equation.js');
 
 test('ProblemCard returns null when loading or no problem provided', () => {
   const mockReact = { createElement: () => ({}) };
@@ -43,4 +44,18 @@ test('ProblemCard renders problem structure and handles clicks with mock React',
   assert.ok(verifyBtn);
   verifyBtn.props.onClick();
   assert.equal(verified, true);
+});
+
+test('ProblemCard moves the same keypad input into the missing operand slot', () => {
+  const mockReact = {
+    createElement: (type, props, ...children) => ({ type, props, children })
+  };
+  const currentProblem = makeMissingOperandProblem({ num1: 11, num2: 4, op: '-', answer: 7 });
+  const card = problemCardModule.ProblemCard({ currentProblem, userAnswer: '11', React: mockReact });
+  const parts = card.children[0].children;
+
+  assert.equal(parts[0].type, 'input');
+  assert.equal(parts[0].props.value, '11');
+  assert.equal(parts[4].children[0], '7');
+  assert.equal(parts.filter(part => part.type === 'input').length, 1);
 });
