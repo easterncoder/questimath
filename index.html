@@ -146,7 +146,15 @@
     const MAX_MISSED_PROBLEMS = 12;
     const MAX_ANSWER_HISTORY = 25;
     const { isCorrectAnswer } = window.QuestiMathValidation;
-    const { BOSS_MAX_HP, PLAYER_MAX_HP, getBossEncounter, normalizeBoss, resolveBossAnswer } = window.QuestiMathBosses;
+    const {
+      BOSS_MAX_HP,
+      PLAYER_MAX_HP,
+      getBossEncounterState,
+      normalizeBoss,
+      normalizeBossQueue,
+      queueBossMilestones,
+      resolveBossAnswer
+    } = window.QuestiMathBosses;
     const { playSound } = window.QuestiMathAudioSynthesizer;
     const { Keypad } = window.QuestiMathKeypad;
     const { ProblemCard } = window.QuestiMathProblemCard;
@@ -164,6 +172,7 @@
         missedProblems: [],
         answerHistory: [],
         boss: null,
+        pendingBosses: [],
         badgeList: null
       };
     }
@@ -189,6 +198,7 @@
         missedProblems: Array.isArray(savedProgress.missedProblems) ? savedProgress.missedProblems : [],
         answerHistory: Array.isArray(savedProgress.answerHistory) ? savedProgress.answerHistory : [],
         boss: normalizeBoss(savedProgress.boss),
+        pendingBosses: normalizeBossQueue(savedProgress.pendingBosses),
         badgeList: Array.isArray(savedProgress.badgeList) ? savedProgress.badgeList : null
       };
     }
@@ -265,7 +275,13 @@
       const [solvedHistory, setSolvedHistory] = useState(initialProgressRef.current.solvedHistory);
       const [missedProblems, setMissedProblems] = useState(initialProgressRef.current.missedProblems || []);
       const [answerHistory, setAnswerHistory] = useState(initialProgressRef.current.answerHistory || []);
-      const [boss, setBoss] = useState(getBossEncounter(initialProgressRef.current.level, initialProgressRef.current.boss));
+      const initialBossState = getBossEncounterState(
+        initialProgressRef.current.level,
+        initialProgressRef.current.boss,
+        initialProgressRef.current.pendingBosses
+      );
+      const [boss, setBoss] = useState(initialBossState.boss);
+      const [pendingBosses, setPendingBosses] = useState(initialBossState.pendingBosses);
       const [badgeList, setBadgeList] = useState(initialProgressRef.current.badgeList || BADGES);
       
       const [practiceOps, setPracticeOps] = useState({ '+': true, '-': true, '*': false, '/': false });
@@ -397,8 +413,13 @@
             if (data.solvedHistory) setSolvedHistory(data.solvedHistory);
             if (Array.isArray(data.missedProblems)) setMissedProblems(data.missedProblems);
             if (Array.isArray(data.answerHistory)) setAnswerHistory(data.answerHistory);
-            const syncedBoss = getBossEncounter(data.level || level, data.boss === undefined ? boss : data.boss);
-            setBoss(syncedBoss);
+            const syncedBossState = getBossEncounterState(
+              data.level || level,
+              data.boss === undefined ? boss : data.boss,
+              data.pendingBosses === undefined ? pendingBosses : data.pendingBosses
+            );
+            setBoss(syncedBossState.boss);
+            setPendingBosses(syncedBossState.pendingBosses);
             if (Array.isArray(data.badgeList)) setBadgeList(data.badgeList);
             saveLocalProgress({
               level: data.level || level,
@@ -407,7 +428,8 @@
               solvedHistory: data.solvedHistory || solvedHistory,
               missedProblems: Array.isArray(data.missedProblems) ? data.missedProblems : missedProblems,
               answerHistory: Array.isArray(data.answerHistory) ? data.answerHistory : answerHistory,
-              boss: syncedBoss,
+              boss: syncedBossState.boss,
+              pendingBosses: syncedBossState.pendingBosses,
               badgeList: Array.isArray(data.badgeList) ? data.badgeList : badgeList
             });
             setSyncStatus('synced');
@@ -424,7 +446,7 @@
         return () => unsubscribe();
       }, [user]);
 
-      const saveStatsToCloud = async (newLvl, newXp, newMaxStreak, newHistory, newBadgeList = badgeList, newMissedProblems = missedProblems, newAnswerHistory = answerHistory, newBoss = boss) => {
+      const saveStatsToCloud = async (newLvl, newXp, newMaxStreak, newHistory, newBadgeList = badgeList, newMissedProblems = missedProblems, newAnswerHistory = answerHistory, newBoss = boss, newPendingBosses = pendingBosses) => {
         const progress = {
           level: newLvl,
           xp: newXp,
@@ -433,6 +455,7 @@
           missedProblems: newMissedProblems,
           answerHistory: newAnswerHistory,
           boss: newBoss,
+          pendingBosses: newPendingBosses,
           badgeList: newBadgeList
         };
 
@@ -462,6 +485,7 @@
             missedProblems: newMissedProblems,
             answerHistory: newAnswerHistory,
             boss: newBoss,
+            pendingBosses: newPendingBosses,
             badgeList: newBadgeList,
             updatedAt: new Date().toISOString()
           }, { merge: true });
@@ -615,6 +639,7 @@
             missedProblems,
             answerHistory,
             boss,
+            pendingBosses,
             badgeList: nextBadges
           });
         }
@@ -964,6 +989,7 @@
         let nextBadgeList = badgeList;
         let nextMissedProblems = missedProblems;
         let nextBoss = boss;
+        let nextPendingBosses = pendingBosses;
 
         if (correct) {
           playSound('correct', isMuted);
@@ -1003,12 +1029,19 @@
               nextLevelMessage = `🌟 Rank Unlocked: ${getRank(nextLevel).name}! 👑`;
             }
 
-            const activeBoss = getBossEncounter(nextLevel, boss);
+            nextPendingBosses = queueBossMilestones(level, nextLevel, boss, pendingBosses);
             const bossResult = resolveBossAnswer(boss, true, nextStreak);
-            nextBoss = bossResult.damage > 0 ? bossResult.boss : activeBoss;
+            const nextBossState = getBossEncounterState(
+              nextLevel,
+              bossResult.damage > 0 ? bossResult.boss : boss,
+              nextPendingBosses
+            );
+            nextBoss = nextBossState.boss;
+            nextPendingBosses = nextBossState.pendingBosses;
             setBoss(nextBoss);
-            if (activeBoss && (!boss || activeBoss.rank !== boss.rank)) {
-              nextLevelMessage = `${nextLevelMessage || ''} A rank ${activeBoss.rank} boss appeared!`;
+            setPendingBosses(nextPendingBosses);
+            if (nextBoss && (!boss || nextBoss.rank !== boss.rank)) {
+              nextLevelMessage = `${nextLevelMessage || ''} A rank ${nextBoss.rank} boss appeared!`;
             } else if (bossResult.defeated) {
               nextLevelMessage = `${nextLevelMessage || ''} Boss defeated!`;
             } else if (bossResult.damage > 0) {
@@ -1032,7 +1065,7 @@
           });
 
           setSolvedHistory(newHistory);
-          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory, nextBoss);
+          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory, nextBoss, nextPendingBosses);
 
         } else {
           playSound('wrong', isMuted);
@@ -1063,7 +1096,7 @@
           });
 
           setSolvedHistory(newHistory);
-          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory, nextBoss);
+          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory, nextBoss, nextPendingBosses);
         }
       };
 

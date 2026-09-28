@@ -1,7 +1,9 @@
 const assert = require('assert');
 const {
   getBossEncounter,
+  getBossEncounterState,
   normalizeBoss,
+  queueBossMilestones,
   resolveBossAnswer
 } = require('../boss-encounters');
 
@@ -10,6 +12,22 @@ assert.deepStrictEqual(getBossEncounter(5, null), { rank: 5, hp: 100, playerHp: 
 assert.deepStrictEqual(getBossEncounter(6, { rank: 5, hp: 40, playerHp: 80 }), { rank: 5, hp: 40, playerHp: 80 });
 assert.deepStrictEqual(getBossEncounter(5, { rank: 5, hp: 0, playerHp: 80 }), { rank: 5, hp: 0, playerHp: 80 });
 assert.deepStrictEqual(getBossEncounter(10, { rank: 5, hp: 0, playerHp: 80 }), { rank: 10, hp: 100, playerHp: 100 });
+
+const jumpedMilestones = queueBossMilestones(4, 11, null, []);
+const jumpedBossState = getBossEncounterState(11, null, jumpedMilestones);
+assert.deepStrictEqual(jumpedBossState.boss, { rank: 5, hp: 100, playerHp: 100 });
+assert.deepStrictEqual(jumpedBossState.pendingBosses, [{ rank: 10, hp: 100, playerHp: 100 }]);
+
+const unfinishedBoss = { rank: 5, hp: 40, playerHp: 80 };
+const laterMilestones = queueBossMilestones(9, 10, unfinishedBoss, []);
+const laterBossState = getBossEncounterState(10, unfinishedBoss, laterMilestones);
+assert.deepStrictEqual(laterBossState.boss, unfinishedBoss);
+assert.deepStrictEqual(laterBossState.pendingBosses, [{ rank: 10, hp: 100, playerHp: 100 }]);
+
+const defeatedBossState = getBossEncounterState(10, { rank: 5, hp: 0, playerHp: 80 }, laterBossState.pendingBosses);
+assert.deepStrictEqual(defeatedBossState.boss, { rank: 10, hp: 100, playerHp: 100 });
+assert.deepStrictEqual(defeatedBossState.pendingBosses, []);
+
 assert.strictEqual(normalizeBoss({ rank: 5, hp: 'bad', playerHp: 100 }), null);
 assert.deepStrictEqual(normalizeBoss({ rank: 5, hp: 200, playerHp: -5 }), { rank: 5, hp: 100, playerHp: 1 });
 
