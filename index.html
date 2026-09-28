@@ -29,6 +29,7 @@
   <script src="audio-synthesizer.js"></script>
   <script src="keypad.js"></script>
   <script src="problem-card.js"></script>
+  <script src="fact-mastery.js"></script>
   <script src="stats-drawer.js"></script>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -149,6 +150,7 @@
     const { Keypad } = window.QuestiMathKeypad;
     const { ProblemCard } = window.QuestiMathProblemCard;
     const { StatsDrawer } = window.QuestiMathStatsDrawer;
+    const { recordFactAttempt } = window.QuestiMathFactMastery;
 
     /*
      * Returns the default progress shape used by local and cloud storage.
@@ -158,7 +160,7 @@
         level: 1,
         xp: 0,
         highestStreak: 0,
-        solvedHistory: { total: 0, correct: 0, wrong: 0, ops: {} },
+        solvedHistory: { total: 0, correct: 0, wrong: 0, ops: {}, facts: {} },
         missedProblems: [],
         answerHistory: [],
         badgeList: null
@@ -181,6 +183,10 @@
           ops: {
             ...defaultProgress.solvedHistory.ops,
             ...((savedProgress.solvedHistory && savedProgress.solvedHistory.ops) || {})
+          },
+          facts: {
+            ...defaultProgress.solvedHistory.facts,
+            ...((savedProgress.solvedHistory && savedProgress.solvedHistory.facts) || {})
           }
         },
         missedProblems: Array.isArray(savedProgress.missedProblems) ? savedProgress.missedProblems : [],
@@ -942,7 +948,8 @@
           total: solvedHistory.total + 1,
           correct: solvedHistory.correct + (correct ? 1 : 0),
           wrong: solvedHistory.wrong + (correct ? 0 : 1),
-          ops: updatedOps
+          ops: updatedOps,
+          facts: recordFactAttempt(solvedHistory.facts, currentProblem, correct, timeElapsed)
         };
         const nextAnswerHistory = addAnswerHistoryEntry(createAnswerHistoryEntry(correct));
 
