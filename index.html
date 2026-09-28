@@ -651,6 +651,10 @@
          */
         const roundToTenth = (value) => Number(value.toFixed(1));
 
+        const masteryFact = gameMode === 'practice' && ['*', '/'].includes(op) && Math.random() < 0.25
+          ? window.QuestiMathFactMastery.getRandomPracticeFact(op)
+          : null;
+
         /*
          * Builds an exact whole-number division problem from fact-family values.
          */
@@ -673,7 +677,11 @@
           (_, index) => min + index
         );
 
-        switch (targetLevel) {
+        switch (masteryFact ? 0 : targetLevel) {
+          case 0:
+            ({ num1, num2, answer } = masteryFact);
+            break;
+
           case 1:
             if (op === '+') {
               num1 = Math.floor(Math.random() * 8) + 2;

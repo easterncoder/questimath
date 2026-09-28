@@ -1,6 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getFactKey, getGridFact, recordFactAttempt, getFactSummary } = require('../fact-mastery.js');
+const {
+  getFactKey,
+  getGridFact,
+  getRandomPracticeFact,
+  recordFactAttempt,
+  getFactSummary
+} = require('../fact-mastery.js');
 
 test('records ordered multiplication and division attempts with correct timing', () => {
   let facts = recordFactAttempt({}, { op: '*', num1: 3, num2: 4 }, false, 8);
@@ -16,6 +22,27 @@ test('records ordered multiplication and division attempts with correct timing',
 test('maps division rows to quotient and columns to divisor', () => {
   assert.deepEqual(getGridFact('/', 3, 4), { num1: 12, num2: 4, label: '12 ÷ 4' });
   assert.deepEqual(getGridFact('*', 3, 4), { num1: 3, num2: 4, label: '3 × 4' });
+});
+
+test('practice fact generation covers every multiplication and division grid cell', () => {
+  for (let row = 1; row <= 12; row += 1) {
+    for (let column = 1; column <= 12; column += 1) {
+      const createRandom = () => {
+        const values = [(row - 1) / 12, (column - 1) / 12];
+        return () => values.shift();
+      };
+
+      assert.deepEqual(
+        getRandomPracticeFact('*', createRandom()),
+        { num1: row, num2: column, answer: row * column }
+      );
+      assert.deepEqual(
+        getRandomPracticeFact('/', createRandom()),
+        { num1: row * column, num2: column, answer: row }
+      );
+    }
+  }
+  assert.equal(getRandomPracticeFact('+'), null);
 });
 
 test('classifies untried, slow, mastered, and frequently missed facts', () => {

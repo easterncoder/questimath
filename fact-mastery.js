@@ -24,6 +24,24 @@
   }
 
   /*
+   * Builds a random multiplication or division fact from the mastery grid.
+   */
+  function getRandomPracticeFact(op, random = Math.random) {
+    if (!['*', '/'].includes(op)) {
+      return null;
+    }
+
+    const first = Math.floor(random() * GRID_SIZE) + 1;
+    const second = Math.floor(random() * GRID_SIZE) + 1;
+
+    if (op === '*') {
+      return { num1: first, num2: second, answer: first * second };
+    }
+
+    return { num1: first * second, num2: second, answer: first };
+  }
+
+  /*
    * Adds a submitted fact attempt without relying on capped answer history.
    */
   function recordFactAttempt(facts, problem, correct, seconds) {
@@ -75,7 +93,14 @@
     return { attempts, accuracy, averageSeconds, status };
   }
 
-  const mastery = { GRID_SIZE, getFactKey, getGridFact, recordFactAttempt, getFactSummary };
+  const mastery = {
+    GRID_SIZE,
+    getFactKey,
+    getGridFact,
+    getRandomPracticeFact,
+    recordFactAttempt,
+    getFactSummary
+  };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = mastery;
