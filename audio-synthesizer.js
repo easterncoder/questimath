@@ -2,7 +2,7 @@
   /*
    * Synthesizes audio tones using Web Audio API for game events.
    */
-  function playSound(type, isMuted, audioContextOverride) {
+  function playSound(type, isMuted, audioContextOverride, streak = 1) {
     if (isMuted) {
       return false;
     }
@@ -23,9 +23,10 @@
       const now = ctx.currentTime || 0;
 
       if (type === 'correct') {
+        const pitchScale = 1 + Math.min(Math.max(streak - 1, 0), 14) * 0.04;
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(523.25, now);
-        osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.12);
+        osc.frequency.setValueAtTime(523.25 * pitchScale, now);
+        osc.frequency.exponentialRampToValueAtTime(783.99 * pitchScale, now + 0.12);
         gain.gain.setValueAtTime(0.08, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
         osc.start(now);
