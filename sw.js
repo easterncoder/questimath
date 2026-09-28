@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'questimath-0.3.1';
+const CACHE_VERSION = 'questimath-0.3.5';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-app-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const DEPENDENCY_CACHE = `${CACHE_VERSION}-dependencies`;
@@ -7,10 +7,14 @@ const APP_SHELL_ASSETS = [
   './',
   './index.html',
   './answer-validation.js',
+  './spaced-repetition.js',
   './rank-progression.js',
+  './practice-drills.js',
   './audio-synthesizer.js',
   './keypad.js',
+  './problem-equation.js',
   './problem-card.js',
+  './fact-mastery.js',
   './stats-drawer.js',
   './blitz-mode.js',
   './manifest.json',
