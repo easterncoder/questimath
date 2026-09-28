@@ -28,6 +28,7 @@
   <script src="rank-progression.js"></script>
   <script src="audio-synthesizer.js"></script>
   <script src="keypad.js"></script>
+  <script src="problem-equation.js"></script>
   <script src="problem-card.js"></script>
   <script src="stats-drawer.js"></script>
   <!-- Google Fonts -->
@@ -148,6 +149,7 @@
     const { playSound } = window.QuestiMathAudioSynthesizer;
     const { Keypad } = window.QuestiMathKeypad;
     const { ProblemCard } = window.QuestiMathProblemCard;
+    const { selectQuestionForm, formatEquation } = window.QuestiMathEquations;
     const { StatsDrawer } = window.QuestiMathStatsDrawer;
 
     /*
@@ -265,6 +267,7 @@
       
       const [practiceOps, setPracticeOps] = useState({ '+': true, '-': true, '*': false, '/': false });
       const [practiceLevel, setPracticeLevel] = useState(1);
+      const [practiceMissingOperands, setPracticeMissingOperands] = useState(false);
 
       const [shakeActive, setShakeActive] = useState(false);
       const canvasRef = useRef(null);
@@ -570,7 +573,7 @@
         if (!loadingProgress) {
           generateNewQuest();
         }
-      }, [level, gameMode, practiceOps, practiceLevel, loadingProgress]);
+      }, [level, gameMode, practiceOps, practiceLevel, practiceMissingOperands, loadingProgress]);
 
       // Achievement badge validation triggers
       useEffect(() => {
@@ -788,13 +791,14 @@
           }
         }
 
-        setCurrentProblem({
+        const problem = {
           num1,
           num2,
           op,
           answer,
           startTime: Date.now()
-        });
+        };
+        setCurrentProblem(selectQuestionForm(problem, gameMode, targetLevel, practiceMissingOperands));
       };
 
       /*
@@ -831,7 +835,9 @@
           num1: currentProblem.num1,
           num2: currentProblem.num2,
           op: currentProblem.op,
-          answer: currentProblem.answer
+          answer: currentProblem.answer,
+          missingOperand: currentProblem.missingOperand,
+          result: currentProblem.result
         };
 
         return [nextMissedProblem, ...missedProblems].slice(0, MAX_MISSED_PROBLEMS);
@@ -856,6 +862,8 @@
         num1: currentProblem.num1,
         num2: currentProblem.num2,
         op: currentProblem.op,
+        missingOperand: currentProblem.missingOperand,
+        result: currentProblem.result,
         userAnswer: userAnswer.trim(),
         correctAnswer: currentProblem.answer,
         correct,
@@ -883,21 +891,27 @@
       };
 
       /*
-       * Converts stored operators to the display symbols players see.
+       * Explains the inverse operation for a missing operand question.
        */
-      const formatOperatorSymbol = (op) => {
-        if (op === '*') {
-          return '×';
+      const generateHintExplanation = (problem) => {
+        const { num1, num2, op, answer: actualAns, missingOperand, result } = problem;
+
+        if (missingOperand === 'num2' && op === '+') {
+          return `Subtract the known part from the total: ${result} - ${num1} = ${actualAns}.`;
         }
 
-        if (op === '/') {
-          return '÷';
+        if (missingOperand === 'num1' && op === '-') {
+          return `Add the difference and the known part: ${result} + ${num2} = ${actualAns}.`;
         }
 
-        return op;
-      };
+        if (missingOperand === 'num1' && op === '*') {
+          return `Divide the product by the known factor: ${result} ÷ ${num2} = ${actualAns}.`;
+        }
 
-      const generateHintExplanation = (num1, num2, op, actualAns) => {
+        if (missingOperand === 'num2' && op === '/') {
+          return `Divide the total by the quotient: ${num1} ÷ ${result} = ${actualAns}.`;
+        }
+
         let text = "";
         if (op === '+') {
           const splitOnes1 = num1 % 10;
@@ -1016,12 +1030,7 @@
           setShakeActive(true);
           setTimeout(() => setShakeActive(false), 500);
 
-          const hintExplanation = generateHintExplanation(
-            currentProblem.num1,
-            currentProblem.num2,
-            currentProblem.op,
-            currentProblem.answer
-          );
+          const hintExplanation = generateHintExplanation(currentProblem);
 
           nextMissedProblems = addMissedProblem();
           setMissedProblems(nextMissedProblems);
@@ -1369,7 +1378,7 @@
                   <div className="text-[11px] text-slate-400 font-bold bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 flex items-center justify-between">
                     <span>Next miss</span>
                     <span className="font-mono text-indigo-300">
-                      {missedProblems[0].num1} {missedProblems[0].op === '*' ? '×' : missedProblems[0].op === '/' ? '÷' : missedProblems[0].op} {missedProblems[0].num2}
+                      {formatEquation(missedProblems[0])}
                     </span>
                   </div>
                 )}
@@ -1410,6 +1419,15 @@
                       ))}
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setPracticeMissingOperands(enabled => !enabled)}
+                    aria-pressed={practiceMissingOperands}
+                    className={`mb-5 w-full rounded-xl border px-3 py-3 text-left text-xs font-bold ${practiceMissingOperands ? 'border-indigo-500 bg-indigo-600/10 text-indigo-300' : 'border-slate-800 bg-slate-950 text-slate-400'}`}
+                  >
+                    Missing operand questions {practiceMissingOperands ? 'On' : 'Off'}
+                  </button>
 
                   <div>
                     <span className="text-xs text-slate-400 font-bold flex justify-between uppercase mb-2">
@@ -1481,7 +1499,7 @@
                       >
                         <div className="flex items-center justify-between gap-3 text-[11px] font-bold">
                           <span className="font-mono text-slate-200">
-                            {entry.num1} {formatOperatorSymbol(entry.op)} {entry.num2} = {entry.userAnswer}
+                            {formatEquation(entry, entry.userAnswer)}
                           </span>
                           <span className={entry.correct ? 'text-emerald-400' : 'text-rose-400'}>
                             {entry.correct ? 'Correct' : 'Missed'}

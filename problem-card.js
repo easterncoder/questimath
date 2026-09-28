@@ -25,12 +25,9 @@
       return null;
     }
 
-    const opSymbol = currentProblem.op === '*' ? '×' : currentProblem.op === '/' ? '÷' : currentProblem.op;
-
-    const opElement = createElement('span', { className: 'text-indigo-400 scale-95' }, opSymbol);
-    const num1Element = createElement('span', { className: 'bg-gradient-to-b from-white to-slate-300 bg-clip-text text-transparent' }, String(currentProblem.num1));
-    const num2Element = createElement('span', { className: 'bg-gradient-to-b from-white to-slate-300 bg-clip-text text-transparent' }, String(currentProblem.num2));
-    const equalsElement = createElement('span', { className: 'text-slate-400 font-medium scale-90' }, '=');
+    const equations = root.QuestiMathEquations || require('./problem-equation');
+    const equationParts = equations.getEquationParts(currentProblem);
+    const answerIndex = currentProblem.missingOperand === 'num1' ? 0 : currentProblem.missingOperand === 'num2' ? 2 : 4;
 
     const isSuccess = feedback && feedback.status === 'success';
     const isError = feedback && feedback.status === 'error';
@@ -55,7 +52,12 @@
 
     const problemDisplay = createElement('div', {
       className: 'flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-4xl sm:text-5xl font-black tracking-tight font-mono text-center my-2 sm:my-4'
-    }, num1Element, opElement, num2Element, equalsElement, inputElement);
+    }, ...equationParts.map((part, index) => index === answerIndex
+      ? inputElement
+      : createElement('span', {
+          key: index,
+          className: index === 1 ? 'text-indigo-400 scale-95' : index === 3 ? 'text-slate-400 font-medium scale-90' : 'bg-gradient-to-b from-white to-slate-300 bg-clip-text text-transparent'
+        }, String(part))));
 
     const actionButtonContainer = createElement('div', { className: 'mt-4' },
       (feedback && feedback.status)
