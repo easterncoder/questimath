@@ -37,7 +37,7 @@ The app works locally without Firebase credentials by saving progress in `localS
 
 ## Release
 
-Current version: `0.4.0`
+Current version: `0.5.0`
 
 ## Author
 
