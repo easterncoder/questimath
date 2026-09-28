@@ -25,6 +25,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- Shared modules -->
   <script src="answer-validation.js"></script>
+  <script src="spaced-repetition.js"></script>
   <script src="rank-progression.js"></script>
   <script src="audio-synthesizer.js"></script>
   <script src="keypad.js"></script>
@@ -145,6 +146,7 @@
     const MAX_MISSED_PROBLEMS = 12;
     const MAX_ANSWER_HISTORY = 25;
     const { isCorrectAnswer } = window.QuestiMathValidation;
+    const { getDueReview, recordMiss, recordCorrectReview } = window.QuestiMathSpacedRepetition;
     const { playSound } = window.QuestiMathAudioSynthesizer;
     const { Keypad } = window.QuestiMathKeypad;
     const { ProblemCard } = window.QuestiMathProblemCard;
@@ -613,6 +615,13 @@
         setUserAnswer('');
         setFeedback(null);
         answerSubmittedRef.current = false;
+
+        const dueReview = getDueReview(missedProblems, solvedHistory.total);
+
+        if (dueReview) {
+          setCurrentProblem(createReviewProblem(dueReview));
+          return;
+        }
         
         let targetOps = [];
         let targetLevel = normalizeLevel(level);
@@ -798,6 +807,15 @@
       };
 
       /*
+       * Builds an active review quest from a saved missed problem.
+       */
+      const createReviewProblem = (missedProblem) => ({
+        ...missedProblem,
+        reviewId: missedProblem.id,
+        startTime: Date.now()
+      });
+
+      /*
        * Loads the most recent saved missed problem into the active answer flow.
        */
       const startMistakeReview = () => {
@@ -811,41 +829,7 @@
         setUserAnswer('');
         setFeedback(null);
         answerSubmittedRef.current = false;
-        setCurrentProblem({
-          ...missedProblem,
-          reviewId: missedProblem.id,
-          startTime: Date.now()
-        });
-      };
-
-      /*
-       * Stores a newly missed problem without duplicating review attempts.
-       */
-      const addMissedProblem = () => {
-        if (currentProblem.reviewId) {
-          return missedProblems;
-        }
-
-        const nextMissedProblem = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          num1: currentProblem.num1,
-          num2: currentProblem.num2,
-          op: currentProblem.op,
-          answer: currentProblem.answer
-        };
-
-        return [nextMissedProblem, ...missedProblems].slice(0, MAX_MISSED_PROBLEMS);
-      };
-
-      /*
-       * Removes a reviewed problem once the player answers it correctly.
-       */
-      const clearReviewedProblem = () => {
-        if (!currentProblem.reviewId) {
-          return missedProblems;
-        }
-
-        return missedProblems.filter(problem => problem.id !== currentProblem.reviewId);
+        setCurrentProblem(createReviewProblem(missedProblem));
       };
 
       /*
@@ -993,17 +977,19 @@
           }
 
           const streakText = `Streak: ${nextStreak}`;
-          nextMissedProblems = clearReviewedProblem();
+          nextMissedProblems = recordCorrectReview(missedProblems, currentProblem.reviewId, newHistory.total);
           setMissedProblems(nextMissedProblems);
           setAnswerHistory(nextAnswerHistory);
 
           setFeedback({
             status: 'success',
-            text: nextLevelMessage
-              ? `${nextLevelMessage} ${streakText}.`
-              : currentProblem.reviewId
-                ? `Mistake cleared. ${streakText}. 🎉`
-              : `Brilliant! +${earnedXP} XP. ${streakText}${streakBonus > 0 ? `, +${streakBonus} bonus XP` : ''}. 🎉`,
+            text: currentProblem.reviewId
+              ? `${nextLevelMessage ? `${nextLevelMessage} ` : ''}${nextMissedProblems.length < missedProblems.length
+                ? 'Mistake cleared.'
+                : 'Good review! One more correct answer to clear this mistake.'} ${streakText}. 🎉`
+              : nextLevelMessage
+                ? `${nextLevelMessage} ${streakText}.`
+                : `Brilliant! +${earnedXP} XP. ${streakText}${streakBonus > 0 ? `, +${streakBonus} bonus XP` : ''}. 🎉`,
             hint: ''
           });
 
@@ -1023,7 +1009,13 @@
             currentProblem.answer
           );
 
-          nextMissedProblems = addMissedProblem();
+          nextMissedProblems = recordMiss(
+            missedProblems,
+            currentProblem,
+            newHistory.total,
+            MAX_MISSED_PROBLEMS,
+            `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          );
           setMissedProblems(nextMissedProblems);
           setAnswerHistory(nextAnswerHistory);
 
