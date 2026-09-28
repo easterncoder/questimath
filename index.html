@@ -29,6 +29,7 @@
   <script src="rank-progression.js"></script>
   <script src="practice-drills.js"></script>
   <script src="audio-synthesizer.js"></script>
+  <script src="streak-feedback.js"></script>
   <script src="keypad.js"></script>
   <script src="problem-equation.js"></script>
   <script src="problem-card.js"></script>
@@ -237,6 +238,7 @@
 
 
     const { getRank, getRankProgressPercent, getRankXpGoal, normalizeLevel } = window.QuestiMathRanks;
+    const { getFlameTier, vibrateForAnswer } = window.QuestiMathStreakFeedback;
 
     const BADGES = [
       { id: 'first_step', title: 'First Spark ⚡', desc: 'Solved your very first QuestiMath challenge correctly!', unlocked: false },
@@ -247,6 +249,13 @@
       { id: 'half_century', title: 'Centurion Rookie 💯', desc: 'Got 50 correct answers in total.', unlocked: false },
       { id: 'max_level', title: 'Ultimate Sage 👑', desc: 'Reached the prestigious Level 5 rank.', unlocked: false }
     ];
+
+    /*
+     * Draws a flame whose color follows the active streak tier.
+     */
+    function FlameIcon() {
+      return <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.2 2c.4 3.4-1.5 5-2.9 6.7-.7.9-1.1 1.8-.9 2.9-1.5-.5-2.4-1.8-2.7-3.4C3.9 10.4 3 12.7 3 15a9 9 0 0 0 18 0c0-4.9-3.3-8.5-8.8-13Zm-.2 19a4 4 0 0 1-4-4c0-1.8 1-3.1 2.2-4.5.2 1.3 1.1 2 1.8 2.5.3-1.2 1.3-2.2 2.2-3.1C15.8 13.5 16 15 16 17a4 4 0 0 1-4 4Z" /></svg>;
+    }
 
     function App() {
       const initialProgressRef = useRef(null);
@@ -269,6 +278,7 @@
       const [level, setLevel] = useState(initialProgressRef.current.level);
       const [xp, setXp] = useState(initialProgressRef.current.xp);
       const [streak, setStreak] = useState(0);
+      const flameTier = getFlameTier(streak);
       const [highestStreak, setHighestStreak] = useState(initialProgressRef.current.highestStreak);
       const [currentProblem, setCurrentProblem] = useState(null);
       const [userAnswer, setUserAnswer] = useState('');
@@ -1061,7 +1071,9 @@
         let nextMissedProblems = missedProblems;
 
         if (correct) {
-          playSound('correct', isMuted);
+          nextStreak = streak + 1;
+          playSound('correct', isMuted, null, nextStreak);
+          vibrateForAnswer(true, streak);
           const baseXP = 15;
           const streakBonus = Math.min(Math.floor(streak / 3) * 5, 20);
           const earnedXP = baseXP + streakBonus;
@@ -1069,7 +1081,6 @@
           nextXp = xp + earnedXP;
           setXp(nextXp);
           
-          nextStreak = streak + 1;
           setStreak(nextStreak);
           
           if (nextStreak > highestStreak) {
@@ -1121,6 +1132,7 @@
 
         } else {
           playSound('wrong', isMuted);
+          vibrateForAnswer(false, streak);
           setStreak(0);
           setShakeActive(true);
           setTimeout(() => setShakeActive(false), 500);
@@ -1261,8 +1273,8 @@
                   )}
                 </div>
 
-                <div className={`flex items-center justify-center gap-2 bg-slate-950 px-3 py-2 min-h-11 rounded-xl border border-orange-500/20 text-orange-400 font-bold text-xs sm:text-sm animate-bounce-subtle ${streak > 0 ? 'ring-1 ring-orange-500/30 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'opacity-40'}`}>
-                  <span>🔥 Streak: {streak}</span>
+                <div className={`flex items-center justify-center gap-2 bg-slate-950 px-3 py-2 min-h-11 rounded-xl border font-bold text-xs sm:text-sm ${flameTier.border} ${flameTier.color} ${streak > 0 ? `animate-bounce-subtle ${flameTier.glow}` : 'opacity-40'}`} aria-label={`${flameTier.name}, streak ${streak}`}>
+                  <FlameIcon /><span>Streak: {streak}</span>
                 </div>
 
                 {gameMode === 'adventure' && (
@@ -1315,8 +1327,8 @@
                   >
                     ⚡
                   </button>
-                  <div className="min-h-10 rounded-xl bg-slate-950 border border-orange-500/20 text-orange-400 text-[11px] font-extrabold flex items-center justify-center">
-                    🔥 {streak}
+                  <div className={`min-h-10 rounded-xl bg-slate-950 border text-[11px] font-extrabold flex items-center justify-center ${flameTier.border} ${flameTier.color} ${flameTier.glow}`} aria-label={`${flameTier.name}, streak ${streak}`}>
+                    <FlameIcon /> {streak}
                   </div>
                   <div className={`min-h-10 rounded-xl text-white text-[11px] font-extrabold bg-gradient-to-r ${getRank(level).color} flex items-center justify-center`}>
                     R{level}
