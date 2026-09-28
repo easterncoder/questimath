@@ -32,4 +32,15 @@ for (let index = 2; index <= 13; index += 1) {
 assert.strictEqual(accumulatedMisses.length, 13);
 assert.strictEqual(accumulatedMisses.find(item => item.id === 'miss-1').correctReviews, 1);
 
+const missingOperandMiss = recordMiss([], {
+  num1: 4,
+  num2: 5,
+  op: '+',
+  answer: 5,
+  missingOperand: 'num2',
+  result: 9
+}, 10, 'missing-operand');
+assert.strictEqual(missingOperandMiss[0].missingOperand, 'num2');
+assert.strictEqual(missingOperandMiss[0].result, 9);
+
 console.log('spaced repetition tests passed');

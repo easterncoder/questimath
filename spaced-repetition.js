@@ -25,6 +25,8 @@
       num2: currentProblem.num2,
       op: currentProblem.op,
       answer: currentProblem.answer,
+      missingOperand: currentProblem.missingOperand,
+      result: currentProblem.result,
       correctReviews: 0,
       nextReviewAt: answeredCount + FIRST_REVIEW_GAP
     };
