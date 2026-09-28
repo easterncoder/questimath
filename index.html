@@ -150,7 +150,7 @@
     const { Keypad } = window.QuestiMathKeypad;
     const { ProblemCard } = window.QuestiMathProblemCard;
     const { StatsDrawer } = window.QuestiMathStatsDrawer;
-    const { ROUND_SECONDS, BONUS_SECONDS, secondsRemaining, awardBonus, loadHighScore, saveHighScore } = window.QuestiMathBlitz;
+    const { ROUND_SECONDS, BONUS_SECONDS, secondsRemaining, awardBonus, getHighScoreStorage, loadHighScore, saveHighScore } = window.QuestiMathBlitz;
 
     /*
      * Returns the default progress shape used by local and cloud storage.
@@ -252,7 +252,7 @@
       const [blitzStatus, setBlitzStatus] = useState('idle');
       const [blitzSeconds, setBlitzSeconds] = useState(ROUND_SECONDS);
       const [blitzScore, setBlitzScore] = useState(0);
-      const [blitzBest, setBlitzBest] = useState(() => loadHighScore(localStorage));
+      const [blitzBest, setBlitzBest] = useState(() => loadHighScore(getHighScoreStorage()));
       const blitzDeadlineRef = useRef(null);
       const blitzScoreRef = useRef(0);
       const [level, setLevel] = useState(initialProgressRef.current.level);
@@ -289,7 +289,7 @@
         blitzDeadlineRef.current = null;
         setBlitzSeconds(0);
         setBlitzStatus('finished');
-        setBlitzBest(currentBest => saveHighScore(localStorage, blitzScoreRef.current, currentBest));
+        setBlitzBest(currentBest => saveHighScore(getHighScoreStorage(), blitzScoreRef.current, currentBest));
       };
 
       /*

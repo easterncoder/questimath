@@ -4,6 +4,7 @@ const {
   ROUND_SECONDS,
   secondsRemaining,
   awardBonus,
+  getHighScoreStorage,
   loadHighScore,
   saveHighScore
 } = require('../blitz-mode.js');
@@ -37,4 +38,27 @@ test('high score loads safely and only increases', () => {
   assert.equal(loadHighScore(storage), 7);
   values.set('questimath.blitz.highScore.v1', 'broken');
   assert.equal(loadHighScore(storage), 0);
+});
+
+test('high score storage access is safe when the browser denies access', () => {
+  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+
+  try {
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('SecurityError');
+      }
+    });
+
+    assert.equal(getHighScoreStorage(), null);
+    assert.equal(loadHighScore(getHighScoreStorage()), 0);
+    assert.equal(saveHighScore(getHighScoreStorage(), 3, 0), 3);
+  } finally {
+    if (originalStorage) {
+      Object.defineProperty(globalThis, 'localStorage', originalStorage);
+    } else {
+      delete globalThis.localStorage;
+    }
+  }
 });

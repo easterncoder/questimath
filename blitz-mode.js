@@ -21,6 +21,17 @@
   }
 
   /*
+   * Returns local storage when the browser allows access to it.
+   */
+  function getHighScoreStorage() {
+    try {
+      return root.localStorage;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /*
    * Reads the device's best completed Blitz score.
    */
   function loadHighScore(storage) {
@@ -55,6 +66,7 @@
     RAPID_ANSWER_SECONDS,
     secondsRemaining,
     awardBonus,
+    getHighScoreStorage,
     loadHighScore,
     saveHighScore
   };
