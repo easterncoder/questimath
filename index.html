@@ -27,6 +27,7 @@
   <script src="answer-validation.js"></script>
   <script src="spaced-repetition.js"></script>
   <script src="rank-progression.js"></script>
+  <script src="boss-encounters.js"></script>
   <script src="practice-drills.js"></script>
   <script src="audio-synthesizer.js"></script>
   <script src="streak-feedback.js"></script>
@@ -150,6 +151,15 @@
     const AUTO_CONTINUE_SECONDS = 5;
     const MAX_ANSWER_HISTORY = 25;
     const { isCorrectAnswer } = window.QuestiMathValidation;
+    const {
+      BOSS_MAX_HP,
+      PLAYER_MAX_HP,
+      getBossEncounterState,
+      normalizeBoss,
+      normalizeBossQueue,
+      queueBossMilestones,
+      resolveBossAnswer
+    } = window.QuestiMathBosses;
     const { getDueReview, recordMiss, recordCorrectReview } = window.QuestiMathSpacedRepetition;
     const { playSound } = window.QuestiMathAudioSynthesizer;
     const { TABLE_NUMBERS, buildTargetedProblem } = window.QuestiMathPracticeDrills;
@@ -171,6 +181,8 @@
         solvedHistory: { total: 0, correct: 0, wrong: 0, ops: {}, facts: {} },
         missedProblems: [],
         answerHistory: [],
+        boss: null,
+        pendingBosses: [],
         badgeList: null
       };
     }
@@ -199,6 +211,8 @@
         },
         missedProblems: Array.isArray(savedProgress.missedProblems) ? savedProgress.missedProblems : [],
         answerHistory: Array.isArray(savedProgress.answerHistory) ? savedProgress.answerHistory : [],
+        boss: normalizeBoss(savedProgress.boss),
+        pendingBosses: normalizeBossQueue(savedProgress.pendingBosses),
         badgeList: Array.isArray(savedProgress.badgeList) ? savedProgress.badgeList : null
       };
     }
@@ -290,6 +304,13 @@
       const [solvedHistory, setSolvedHistory] = useState(initialProgressRef.current.solvedHistory);
       const [missedProblems, setMissedProblems] = useState(initialProgressRef.current.missedProblems || []);
       const [answerHistory, setAnswerHistory] = useState(initialProgressRef.current.answerHistory || []);
+      const initialBossState = getBossEncounterState(
+        initialProgressRef.current.level,
+        initialProgressRef.current.boss,
+        initialProgressRef.current.pendingBosses
+      );
+      const [boss, setBoss] = useState(initialBossState.boss);
+      const [pendingBosses, setPendingBosses] = useState(initialBossState.pendingBosses);
       const [badgeList, setBadgeList] = useState(initialProgressRef.current.badgeList || BADGES);
       
       const [practiceOps, setPracticeOps] = useState({ '+': true, '-': true, '*': false, '/': false });
@@ -473,6 +494,13 @@
             if (data.solvedHistory) setSolvedHistory(data.solvedHistory);
             if (Array.isArray(data.missedProblems)) setMissedProblems(data.missedProblems);
             if (Array.isArray(data.answerHistory)) setAnswerHistory(data.answerHistory);
+            const syncedBossState = getBossEncounterState(
+              data.level || level,
+              data.boss === undefined ? boss : data.boss,
+              data.pendingBosses === undefined ? pendingBosses : data.pendingBosses
+            );
+            setBoss(syncedBossState.boss);
+            setPendingBosses(syncedBossState.pendingBosses);
             if (Array.isArray(data.badgeList)) setBadgeList(data.badgeList);
             saveLocalProgress({
               level: data.level || level,
@@ -481,6 +509,8 @@
               solvedHistory: data.solvedHistory || solvedHistory,
               missedProblems: Array.isArray(data.missedProblems) ? data.missedProblems : missedProblems,
               answerHistory: Array.isArray(data.answerHistory) ? data.answerHistory : answerHistory,
+              boss: syncedBossState.boss,
+              pendingBosses: syncedBossState.pendingBosses,
               badgeList: Array.isArray(data.badgeList) ? data.badgeList : badgeList
             });
             setSyncStatus('synced');
@@ -497,7 +527,7 @@
         return () => unsubscribe();
       }, [user]);
 
-      const saveStatsToCloud = async (newLvl, newXp, newMaxStreak, newHistory, newBadgeList = badgeList, newMissedProblems = missedProblems, newAnswerHistory = answerHistory) => {
+      const saveStatsToCloud = async (newLvl, newXp, newMaxStreak, newHistory, newBadgeList = badgeList, newMissedProblems = missedProblems, newAnswerHistory = answerHistory, newBoss = boss, newPendingBosses = pendingBosses) => {
         const progress = {
           level: newLvl,
           xp: newXp,
@@ -505,6 +535,8 @@
           solvedHistory: newHistory,
           missedProblems: newMissedProblems,
           answerHistory: newAnswerHistory,
+          boss: newBoss,
+          pendingBosses: newPendingBosses,
           badgeList: newBadgeList
         };
 
@@ -533,6 +565,8 @@
             solvedHistory: newHistory,
             missedProblems: newMissedProblems,
             answerHistory: newAnswerHistory,
+            boss: newBoss,
+            pendingBosses: newPendingBosses,
             badgeList: newBadgeList,
             updatedAt: new Date().toISOString()
           }, { merge: true });
@@ -685,6 +719,8 @@
             solvedHistory,
             missedProblems,
             answerHistory,
+            boss,
+            pendingBosses,
             badgeList: nextBadges
           });
         }
@@ -1069,6 +1105,8 @@
         let nextHighestStreak = highestStreak;
         let nextBadgeList = badgeList;
         let nextMissedProblems = missedProblems;
+        let nextBoss = boss;
+        let nextPendingBosses = pendingBosses;
 
         if (correct) {
           nextStreak = streak + 1;
@@ -1108,6 +1146,25 @@
               window.triggerMathConfetti && window.triggerMathConfetti();
               nextLevelMessage = `🌟 Rank Unlocked: ${getRank(nextLevel).name}! 👑`;
             }
+
+            nextPendingBosses = queueBossMilestones(level, nextLevel, boss, pendingBosses);
+            const bossResult = resolveBossAnswer(boss, true, nextStreak);
+            const nextBossState = getBossEncounterState(
+              nextLevel,
+              bossResult.damage > 0 ? bossResult.boss : boss,
+              nextPendingBosses
+            );
+            nextBoss = nextBossState.boss;
+            nextPendingBosses = nextBossState.pendingBosses;
+            setBoss(nextBoss);
+            setPendingBosses(nextPendingBosses);
+            if (nextBoss && (!boss || nextBoss.rank !== boss.rank)) {
+              nextLevelMessage = `${nextLevelMessage || ''} A rank ${nextBoss.rank} boss appeared!`;
+            } else if (bossResult.defeated) {
+              nextLevelMessage = `${nextLevelMessage || ''} Boss defeated!`;
+            } else if (bossResult.damage > 0) {
+              nextLevelMessage = `${nextLevelMessage || ''} ${bossResult.damage} boss damage${bossResult.multiplier > 1 ? ` (${bossResult.multiplier}× combo)` : ''}!`;
+            }
           }
 
           const streakText = `Streak: ${nextStreak}`;
@@ -1128,12 +1185,17 @@
           });
 
           setSolvedHistory(newHistory);
-          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory);
+          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory, nextBoss, nextPendingBosses);
 
         } else {
           playSound('wrong', isMuted);
           vibrateForAnswer(false, streak);
           setStreak(0);
+          const bossResult = gameMode === 'adventure' ? resolveBossAnswer(boss, false, streak) : null;
+          if (bossResult && bossResult.strike > 0) {
+            nextBoss = bossResult.boss;
+            setBoss(nextBoss);
+          }
           setShakeActive(true);
           setTimeout(() => setShakeActive(false), 500);
 
@@ -1150,12 +1212,12 @@
 
           setFeedback({
             status: 'error',
-            text: `Oops! The correct answer was ${currentProblem.answer}. ${streak > 0 ? `Streak reset from ${streak}.` : 'Start a new streak next quest.'}`,
+            text: `Oops! The correct answer was ${currentProblem.answer}. ${streak > 0 ? `Streak reset from ${streak}.` : 'Start a new streak next quest.'}${bossResult && bossResult.strike > 0 ? ` Boss strikes for ${bossResult.strike} HP.${bossResult.knockedOut ? ' You recover, but the boss heals.' : ''}` : ''}`,
             hint: hintExplanation
           });
 
           setSolvedHistory(newHistory);
-          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory);
+          saveStatsToCloud(nextLevel, nextXp, nextHighestStreak, newHistory, nextBadgeList, nextMissedProblems, nextAnswerHistory, nextBoss, nextPendingBosses);
         }
       };
 
@@ -1412,6 +1474,37 @@
                     <span>Next Rank: {getRank(level + 1).name}</span>
                   </div>
                 </div>
+              )}
+
+              {gameMode === 'adventure' && boss && (
+                <section className="bg-slate-900 border border-rose-500/40 p-4 sm:p-5 rounded-2xl space-y-3" aria-label="Boss encounter">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-rose-400">Rank {boss.rank} Boss</p>
+                      <h2 className="text-lg font-extrabold text-white heading-font">Guardian of {getRank(boss.rank).name}</h2>
+                    </div>
+                    <span className="text-2xl" aria-hidden="true">⚔️</span>
+                  </div>
+                  {boss.hp === 0 ? (
+                    <p className="text-emerald-400 font-bold">Boss defeated!</p>
+                  ) : (
+                    <>
+                      <div>
+                        <div className="flex justify-between text-xs font-bold text-rose-300 mb-1"><span>Boss HP</span><span>{boss.hp} / {BOSS_MAX_HP}</span></div>
+                        <div className="h-3 rounded-full bg-slate-950 overflow-hidden" role="progressbar" aria-label="Boss HP" aria-valuemin="0" aria-valuemax={BOSS_MAX_HP} aria-valuenow={boss.hp}>
+                          <div className="h-full bg-rose-500 transition-all duration-500" style={{ width: `${boss.hp}%` }}></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-xs font-bold text-sky-300 mb-1"><span>Your HP</span><span>{boss.playerHp} / {PLAYER_MAX_HP}</span></div>
+                        <div className="h-2 rounded-full bg-slate-950 overflow-hidden" role="progressbar" aria-label="Player HP" aria-valuemin="0" aria-valuemax={PLAYER_MAX_HP} aria-valuenow={boss.playerHp}>
+                          <div className="h-full bg-sky-500 transition-all duration-500" style={{ width: `${boss.playerHp}%` }}></div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-400">Correct answers deal 20 damage. Every 3 answers in a streak increases the damage multiplier. Misses trigger a 20 HP strike and reset your streak.</p>
+                    </>
+                  )}
+                </section>
               )}
 
               <div className={`relative bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl sm:rounded-3xl p-4 sm:p-10 transition-all ${shakeActive ? 'animate-shake border-red-500 shadow-red-500/10' : 'hover:border-indigo-500/30'}`}>

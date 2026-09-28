@@ -7,6 +7,7 @@ QuestiMath is a browser-based math practice PWA for building arithmetic fluency 
 - Gamified arithmetic practice with level progression and XP.
 - Addition, subtraction, multiplication, and division challenges.
 - Streak tracking, rank progress, and unlockable badges.
+- Adventure boss encounters at every fifth rank, with persistent HP and combo damage.
 - Installable PWA with app icons and a service worker.
 - Local progress storage with optional Firebase-backed cloud sync.
 - Offline app shell caching for repeat play without a network connection.
@@ -25,6 +26,7 @@ Then open `http://localhost:8000`.
 
 - `index.html` contains the React application and Firebase bootstrap.
 - `rank-progression.js` defines rank metadata and endless rank progression helpers.
+- `boss-encounters.js` handles milestone bosses, damage, and strikes.
 - `manifest.json` defines the PWA install metadata.
 - `sw.js` provides app shell, runtime, and dependency caching.
 - `icon-192.png` and `icon-512.png` are the PWA icons.
